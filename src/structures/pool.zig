@@ -22,7 +22,10 @@ pub fn Pool(comptime Node: type) type {
 
             // Pre-allocate nodes
             for (0..initial_size) |i| {
-                nodes[i] = try allocator.create(Node);
+                const node = try allocator.create(Node);
+                node.next = null;
+                node.prev = null;
+                nodes[i] = node;
             }
 
             return .{
@@ -73,6 +76,8 @@ const testing = std.testing;
 
 const TestNode = struct {
     value: u32,
+    next: ?*TestNode = null,
+    prev: ?*TestNode = null,
 };
 
 test "Pool - init and deinit" {

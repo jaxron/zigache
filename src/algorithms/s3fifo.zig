@@ -25,7 +25,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
             freq: u2,
         });
 
-        map: Map(K, Node),
+        map: Map(Node),
         small: DoublyLinkedList(Node) = .{},
         main: DoublyLinkedList(Node) = .{},
         ghost: DoublyLinkedList(Node) = .{},
@@ -44,7 +44,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
             const other_size = @max(1, (total_size - small_size) / 2);
 
             return .{
-                .map = try Map(K, Node).init(allocator, total_size, base_size),
+                .map = try Map(Node).init(allocator, total_size, base_size),
                 .max_size = small_size + other_size * 2,
                 .main_size = other_size,
                 .small_size = small_size,
@@ -102,8 +102,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
             node.* = .{
                 .key = key,
                 .value = value,
-                .next = if (found_existing) node.next else null,
-                .prev = if (found_existing) node.prev else null,
+                .next = node.next,
+                .prev = node.prev,
                 .expiry = utils.getExpiry(ttl),
                 .data = .{
                     .queue = if (found_existing) node.data.queue else .Small,

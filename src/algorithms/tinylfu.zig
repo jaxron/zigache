@@ -25,7 +25,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
             region: CacheRegion,
         });
 
-        map: Map(K, Node),
+        map: Map(Node),
         window: DoublyLinkedList(Node) = .{},
         probationary: DoublyLinkedList(Node) = .{},
         protected: DoublyLinkedList(Node) = .{},
@@ -46,7 +46,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
             const probationary_size = @max(1, main_size - protected_size); // 20% of main cache
 
             return .{
-                .map = try Map(K, Node).init(allocator, total_size, base_size),
+                .map = try Map(Node).init(allocator, total_size, base_size),
                 .sketch = try CountMinSketch.init(allocator, total_size, 4),
                 .window_size = window_size,
                 .probationary_size = probationary_size,
@@ -84,7 +84,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
                 }
 
                 // Record access and promote/update node to maintain recency order
-                self.recordAccess(hash_code);
+                self.sketch.increment(hash_code);
                 self.updateOnHit(node);
                 return node.value;
             }
@@ -99,8 +99,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
             node.* = .{
                 .key = key,
                 .value = value,
-                .next = if (found_existing) node.next else null,
-                .prev = if (found_existing) node.prev else null,
+                .next = node.next,
+                .prev = node.prev,
                 .expiry = utils.getExpiry(ttl),
                 .data = .{
                     // New items always start in the window region

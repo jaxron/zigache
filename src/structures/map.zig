@@ -7,7 +7,8 @@ const Allocator = std.mem.Allocator;
 
 /// Map is a generic key-value store that supports different types of keys and nodes.
 /// It uses a hash map for fast lookups and a node pool for efficient memory management.
-pub fn Map(comptime K: type, comptime Node: type) type {
+pub fn Map(comptime Node: type) type {
+    const K = @TypeOf(@field(@as(Node, undefined), "key"));
     return struct {
         /// Uses StringArrayHashMapUnmanaged for string keys,
         /// and AutoArrayHashMapUnmanaged for other types.
@@ -145,10 +146,12 @@ pub fn Map(comptime K: type, comptime Node: type) type {
 
 const testing = std.testing;
 
-const TestMap = Map([]const u8, TestNode);
+const TestMap = Map(TestNode);
 const TestNode = struct {
     key: []const u8,
     value: u32,
+    next: ?*TestNode = null,
+    prev: ?*TestNode = null,
     expiry: ?i64,
 };
 

@@ -11,16 +11,16 @@ const Allocator = std.mem.Allocator;
 /// which is at the front of the queue, is evicted to make room for the new item.
 pub fn FIFO(comptime K: type, comptime V: type) type {
     return struct {
-        const Node = @import("../structures/node.zig").Node(K, V, struct {});
+        const Node = @import("../structures/node.zig").Node(K, V, void);
 
-        map: Map(K, Node),
+        map: Map(Node),
         list: DoublyLinkedList(Node) = .{},
         mutex: std.Thread.RwLock = .{},
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32) !Self {
-            return .{ .map = try Map(K, Node).init(allocator, total_size, base_size) };
+            return .{ .map = try Map(Node).init(allocator, total_size, base_size) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -63,10 +63,10 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
             node.* = .{
                 .key = key,
                 .value = value,
-                .next = if (found_existing) node.next else null,
-                .prev = if (found_existing) node.prev else null,
+                .next = node.next,
+                .prev = node.prev,
                 .expiry = utils.getExpiry(ttl),
-                .data = .{},
+                .data = {},
             };
 
             if (!found_existing) {

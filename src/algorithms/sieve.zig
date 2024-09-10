@@ -19,7 +19,7 @@ pub fn SIEVE(comptime K: type, comptime V: type) type {
             visited: bool,
         });
 
-        map: Map(K, Node),
+        map: Map(Node),
         list: DoublyLinkedList(Node) = .{},
         mutex: std.Thread.RwLock = .{},
         hand: ?*Node = null,
@@ -27,7 +27,7 @@ pub fn SIEVE(comptime K: type, comptime V: type) type {
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32) !Self {
-            return .{ .map = try Map(K, Node).init(allocator, total_size, base_size) };
+            return .{ .map = try Map(Node).init(allocator, total_size, base_size) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -73,8 +73,8 @@ pub fn SIEVE(comptime K: type, comptime V: type) type {
             node.* = .{
                 .key = key,
                 .value = value,
-                .next = if (found_existing) node.next else null,
-                .prev = if (found_existing) node.prev else null,
+                .next = node.next,
+                .prev = node.prev,
                 .expiry = utils.getExpiry(ttl),
                 .data = .{ .visited = false },
             };
