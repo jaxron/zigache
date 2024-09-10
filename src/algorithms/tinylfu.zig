@@ -2,7 +2,7 @@ const std = @import("std");
 const utils = @import("../utils/utils.zig");
 const assert = std.debug.assert;
 
-const CountMinSketch = @import("../structures/cms.zig");
+const CountMinSketch = @import("../structures/CountMinSketch.zig");
 const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList;
 const Map = @import("../structures/map.zig").Map;
 const Allocator = std.mem.Allocator;
