@@ -15,7 +15,7 @@ jobs:
         with:
           version: 0.13.0
       - run: zig build test
-  liny:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
