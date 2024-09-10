@@ -15,7 +15,7 @@ pub fn DoublyLinkedList(comptime Node: type) type {
         const Self = @This();
 
         /// Insert a new node after an existing one.
-        pub fn insertAfter(list: *Self, node: *Node, new_node: *Node) void {
+        pub fn insertAfter(self: *Self, node: *Node, new_node: *Node) void {
             assert(new_node != node);
             assert(new_node.prev == null and new_node.next == null);
 
@@ -25,17 +25,17 @@ pub fn DoublyLinkedList(comptime Node: type) type {
                 new_node.next = next_node;
                 next_node.prev = new_node;
             } else {
-                // Last element of the list.
+                // Last element of the self.
                 new_node.next = null;
-                list.last = new_node;
+                self.last = new_node;
             }
             node.next = new_node;
 
-            list.len += 1;
+            self.len += 1;
         }
 
         /// Insert a new node before an existing one.
-        pub fn insertBefore(list: *Self, node: *Node, new_node: *Node) void {
+        pub fn insertBefore(self: *Self, node: *Node, new_node: *Node) void {
             assert(new_node != node);
             assert(new_node.prev == null and new_node.next == null);
 
@@ -45,102 +45,102 @@ pub fn DoublyLinkedList(comptime Node: type) type {
                 new_node.prev = prev_node;
                 prev_node.next = new_node;
             } else {
-                // First element of the list.
+                // First element of the self.
                 new_node.prev = null;
-                list.first = new_node;
+                self.first = new_node;
             }
             node.prev = new_node;
 
-            list.len += 1;
+            self.len += 1;
         }
 
-        /// Insert a new node at the end of the list.
-        pub fn append(list: *Self, new_node: *Node) void {
-            if (list.last) |last| {
-                assert(list.len > 0);
+        /// Insert a new node at the end of the self.
+        pub fn append(self: *Self, new_node: *Node) void {
+            if (self.last) |last| {
+                assert(self.len > 0);
 
                 // Insert after last.
-                list.insertAfter(last, new_node);
+                self.insertAfter(last, new_node);
             } else {
-                assert(list.first == null);
-                assert(list.len == 0);
+                assert(self.first == null);
+                assert(self.len == 0);
 
-                // Empty list.
-                list.prepend(new_node);
+                // Empty self.
+                self.prepend(new_node);
             }
         }
 
-        /// Insert a new node at the beginning of the list.
-        pub fn prepend(list: *Self, new_node: *Node) void {
-            if (list.first) |first| {
-                assert(list.len > 0);
+        /// Insert a new node at the beginning of the self.
+        pub fn prepend(self: *Self, new_node: *Node) void {
+            if (self.first) |first| {
+                assert(self.len > 0);
 
                 // Insert before first.
-                list.insertBefore(first, new_node);
+                self.insertBefore(first, new_node);
             } else {
-                assert(list.last == null);
-                assert(list.len == 0);
+                assert(self.last == null);
+                assert(self.len == 0);
 
-                // Empty list.
-                list.first = new_node;
-                list.last = new_node;
+                // Empty self.
+                self.first = new_node;
+                self.last = new_node;
                 new_node.prev = null;
                 new_node.next = null;
 
-                list.len = 1;
+                self.len = 1;
             }
         }
 
-        /// Remove a node from the list.
-        pub fn remove(list: *Self, node: *Node) void {
-            assert(!(list.len > 1 and node.prev == null and node.next == null));
+        /// Remove a node from the self.
+        pub fn remove(self: *Self, node: *Node) void {
+            assert(!(self.len > 1 and node.prev == null and node.next == null));
             assert(node.prev != node and node.next != node);
-            assert(list.len > 0);
+            assert(self.len > 0);
 
             if (node.prev) |prev_node| {
                 // Intermediate node.
                 prev_node.next = node.next;
             } else {
-                // First element of the list.
-                list.first = node.next;
+                // First element of the self.
+                self.first = node.next;
             }
 
             if (node.next) |next_node| {
                 // Intermediate node.
                 next_node.prev = node.prev;
             } else {
-                // Last element of the list.
-                list.last = node.prev;
+                // Last element of the self.
+                self.last = node.prev;
             }
 
             node.prev = null;
             node.next = null;
-            list.len -= 1;
+            self.len -= 1;
         }
 
-        /// Remove and return the last node in the list.
-        pub fn pop(list: *Self) ?*Node {
-            if (list.last) |last| {
-                list.remove(last);
+        /// Remove and return the last node in the self.
+        pub fn pop(self: *Self) ?*Node {
+            if (self.last) |last| {
+                self.remove(last);
                 return last;
             }
             return null;
         }
 
-        /// Remove and return the first node in the list.
+        /// Remove and return the first node in the self.
         /// This operation has O(1) time complexity.
-        pub fn popFirst(list: *Self) ?*Node {
-            if (list.first) |first| {
-                list.remove(first);
+        pub fn popFirst(self: *Self) ?*Node {
+            if (self.first) |first| {
+                self.remove(first);
                 return first;
             }
             return null;
         }
 
-        /// Move a node to the end of the list.
-        pub inline fn moveToBack(list: *Self, node: *Node) void {
-            list.remove(node);
-            list.append(node);
+        /// Move a node to the end of the self.
+        pub inline fn moveToBack(self: *Self, node: *Node) void {
+            self.remove(node);
+            self.append(node);
         }
     };
 }
