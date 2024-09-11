@@ -44,8 +44,7 @@ pub fn deinit(self: *Self) void {
 
 pub fn increment(self: *Self, hash_code: u64) void {
     for (self.counters, 0..) |row, i| {
-        const row_hash = hash_code +% i;
-        const index = row_hash % self.width;
+        const index: usize = @intCast((hash_code +% i) % self.width);
         if (row[index] == 15) {
             self.reset();
         }
@@ -56,8 +55,7 @@ pub fn increment(self: *Self, hash_code: u64) void {
 pub fn estimate(self: Self, hash_code: u64) u32 {
     var min_count: u32 = math.maxInt(u32);
     for (self.counters, 0..) |row, i| {
-        const row_hash = hash_code +% i;
-        const index = row_hash % self.width;
+        const index: usize = @intCast((hash_code +% i) % self.width);
         min_count = @min(min_count, row[index]);
     }
     return min_count;
