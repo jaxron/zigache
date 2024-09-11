@@ -51,15 +51,13 @@ pub const BenchmarkResult = struct {
 };
 
 pub fn generateKeys(allocator: std.mem.Allocator, num_keys: u32, s: f64) ![]Sample {
+    var zipf_distribution = try Zipfian.init(num_keys, s);
     var prng = std.rand.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         try std.posix.getrandom(std.mem.asBytes(&seed));
         break :blk seed;
     });
     const rand = prng.random();
-
-    var zipf_distribution = try Zipfian.init(allocator, num_keys, s);
-    defer zipf_distribution.deinit(allocator);
 
     const keys = try allocator.alloc(Sample, num_keys);
     errdefer allocator.free(keys);

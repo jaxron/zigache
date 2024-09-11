@@ -127,9 +127,13 @@ fn printHelp() !void {
         \\  --zipf VALUE           Set Zipfian distribution parameter (default: 0.7)
         \\
         \\Examples:
-        \\  zipf-bench --mode multi --cache-size 20000 --shards 16 --threads 8
-        \\  zipf-bench --mode both --cache-size 50000 --base-size 40000 --zipf 0.9
+        \\  zigache-benchmark --mode multi --cache-size 20000 --shards 16 --threads 8
+        \\  zigache-benchmark --mode both --cache-size 50000 --base-size 40000 --zipf 0.9
         \\
     ;
     try std.io.getStdOut().writer().print("{s}\n", .{help_text});
+}
+
+comptime {
+    _ = @import("zipfian.zig");
 }
