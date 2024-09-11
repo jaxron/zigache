@@ -11,7 +11,7 @@ pub fn Pool(comptime Node: type) type {
     return struct {
         allocator: Allocator,
         nodes: []*Node,
-        available: u32,
+        available: usize,
 
         const Self = @This();
 
@@ -20,18 +20,26 @@ pub fn Pool(comptime Node: type) type {
             const nodes = try allocator.alloc(*Node, initial_size);
             errdefer allocator.free(nodes);
 
-            // Pre-allocate nodes
+            var available: usize = 0;
+            errdefer {
+                for (nodes[0..available]) |node| {
+                    allocator.destroy(node);
+                }
+            }
+
             for (0..initial_size) |i| {
                 const node = try allocator.create(Node);
                 node.next = null;
                 node.prev = null;
                 nodes[i] = node;
+
+                available += 1;
             }
 
             return .{
                 .allocator = allocator,
                 .nodes = nodes,
-                .available = initial_size,
+                .available = available,
             };
         }
 

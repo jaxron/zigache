@@ -14,9 +14,17 @@ pub fn init(allocator: Allocator, width: usize, depth: usize) !Self {
     const counters = try allocator.alloc([]u4, depth);
     errdefer allocator.free(counters);
 
+    var available: usize = 0;
+    errdefer {
+        for (counters[0..available]) |row| {
+            allocator.free(row);
+        }
+    }
+
     for (counters) |*row| {
         row.* = try allocator.alloc(u4, width);
         @memset(row.*, 0);
+        available += 1;
     }
 
     return .{
