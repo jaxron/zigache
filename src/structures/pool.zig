@@ -46,27 +46,30 @@ pub fn Pool(comptime Node: type) type {
         /// Acquires a Node from the pool or creates a new one if the pool is empty.
         /// The caller is responsible for releasing the node back to the pool when done.
         pub fn acquire(self: *Self) !*Node {
-            if (self.available == 0) {
+            const available = self.available;
+            if (available == 0) {
                 // Pool is empty, create a new node
                 return self.allocator.create(Node);
             }
 
             // Get a node from the pool
-            self.available -= 1;
-            return self.nodes[self.available];
+            const index = available - 1;
+            self.available = index;
+            return self.nodes[index];
         }
 
         /// Releases a Node back to the pool or destroys it if the pool is full.
         /// This should be called when the node is no longer needed.
         pub fn release(self: *Self, node: *Node) void {
-            if (self.available == self.nodes.len) {
+            const available = self.available;
+            if (available == self.nodes.len) {
                 // Pool is full, destroy the node
                 self.allocator.destroy(node);
                 return;
             }
 
             // Return the node to the pool
-            self.nodes[self.available] = node;
+            self.nodes[available] = node;
             self.available += 1;
         }
     };
