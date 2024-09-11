@@ -77,7 +77,7 @@ pub fn LRU(comptime K: type, comptime V: type) type {
                 // Move updated node to the back (most recently used)
                 self.list.moveToBack(node);
             } else {
-                if (self.map.count() > self.map.capacity) try self.evict();
+                if (self.map.count() > self.map.capacity) self.evict();
                 // Add new node to the back of the list (most recently used)
                 self.list.append(node);
             }
@@ -94,7 +94,7 @@ pub fn LRU(comptime K: type, comptime V: type) type {
             } else false;
         }
 
-        fn evict(self: *Self) !void {
+        fn evict(self: *Self) void {
             if (self.list.first) |head| {
                 // Remove the least recently used item (at the front of the list)
                 assert(self.map.remove(head.key, null) != null);

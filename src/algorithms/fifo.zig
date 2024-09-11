@@ -70,7 +70,7 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
             };
 
             if (!found_existing) {
-                if (self.map.count() > self.map.capacity) try self.evict();
+                if (self.map.count() > self.map.capacity) self.evict();
                 // Add new items to the end of the list (FIFO order)
                 self.list.append(node);
             }
@@ -87,7 +87,7 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
             } else false;
         }
 
-        fn evict(self: *Self) !void {
+        fn evict(self: *Self) void {
             if (self.list.first) |head| {
                 // FIFO eviction: remove the oldest item (first in the list)
                 assert(self.map.remove(head.key, null) != null);
