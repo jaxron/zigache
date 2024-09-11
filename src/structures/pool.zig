@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
 
@@ -45,6 +46,7 @@ pub fn Pool(comptime Node: type) type {
 
         /// Releases all resources associated with this pool.
         pub fn deinit(self: *Self) void {
+            assert(self.available == self.nodes.len);
             for (self.nodes) |node| {
                 self.allocator.destroy(node);
             }
