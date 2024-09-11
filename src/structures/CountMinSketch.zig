@@ -1,3 +1,6 @@
+//! CountMinSketch is a probabilistic data structure for approximating frequencies of elements in a data stream.
+//! It uses multiple hash functions to maintain an array of counters, allowing for efficient frequency estimation.
+
 const std = @import("std");
 const math = std.math;
 
@@ -10,6 +13,7 @@ depth: usize,
 
 const Self = @This();
 
+/// Initialize a new CountMinSketch with the given width and depth.
 pub fn init(allocator: Allocator, width: usize, depth: usize) !Self {
     const counters = try allocator.alloc([]u4, depth);
     errdefer allocator.free(counters);
@@ -35,6 +39,7 @@ pub fn init(allocator: Allocator, width: usize, depth: usize) !Self {
     };
 }
 
+/// Releases all resources associated with this sketch.
 pub fn deinit(self: *Self) void {
     for (self.counters) |row| {
         self.allocator.free(row);
@@ -42,6 +47,7 @@ pub fn deinit(self: *Self) void {
     self.allocator.free(self.counters);
 }
 
+/// Increment the count for an item in the sketch.
 pub fn increment(self: *Self, hash_code: u64) void {
     for (self.counters, 0..) |row, i| {
         const index: usize = @intCast((hash_code +% i) % self.width);
@@ -52,6 +58,7 @@ pub fn increment(self: *Self, hash_code: u64) void {
     }
 }
 
+/// Estimate the count of an item in the sketch.
 pub fn estimate(self: Self, hash_code: u64) u32 {
     var min_count: u32 = math.maxInt(u32);
     for (self.counters, 0..) |row, i| {
@@ -61,6 +68,9 @@ pub fn estimate(self: Self, hash_code: u64) u32 {
     return min_count;
 }
 
+/// Reset all counters by dividing them by 2. This helps prevent
+/// overflow and allows the sketch to adapt to changing frequencies
+/// over time.
 pub fn reset(self: *Self) void {
     for (self.counters) |row| {
         for (row) |*cell| {
