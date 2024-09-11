@@ -108,11 +108,10 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
                 },
             };
 
+            self.sketch.increment(hash_code);
             if (found_existing) {
-                self.recordAccess(hash_code);
                 self.updateOnHit(node);
             } else {
-                self.recordAccess(hash_code);
                 self.insertNew(node);
             }
         }
@@ -174,7 +173,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
                 // Use TinyLFU sketch to decide whether to admit the candidate
                 const victim_hash = utils.hash(K, victim.key);
                 const candidate_hash = utils.hash(K, candidate.key);
-                if (self.estimate(victim_hash) > self.estimate(candidate_hash)) {
+                if (self.sketch.estimate(victim_hash) > self.sketch.estimate(candidate_hash)) {
                     assert(self.map.remove(candidate.key, candidate_hash) != null);
                     self.map.pool.release(candidate);
                     return;
@@ -188,14 +187,6 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
             // Add the window node to probationary segment
             candidate.data.region = .Probationary;
             self.probationary.append(candidate);
-        }
-
-        inline fn recordAccess(self: *Self, hash_code: u64) void {
-            self.sketch.increment(hash_code);
-        }
-
-        inline fn estimate(self: *Self, hash_code: u64) u32 {
-            return self.sketch.estimate(hash_code);
         }
     };
 }
