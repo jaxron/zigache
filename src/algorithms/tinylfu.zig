@@ -56,6 +56,9 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
 
         pub fn deinit(self: *Self) void {
             self.sketch.deinit();
+            self.window.clear();
+            self.probationary.clear();
+            self.protected.clear();
             self.map.deinit();
         }
 

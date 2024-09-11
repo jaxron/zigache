@@ -24,6 +24,7 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            self.list.clear();
             self.map.deinit();
         }
 

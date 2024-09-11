@@ -5,7 +5,7 @@ const assert = std.debug.assert;
 /// A generic doubly-linked list modified from Zig's std library.
 /// The implementation uses asserts to check for impossible cases, which
 /// helps catch bugs and invalid states during development and testing.
-/// All operations have O(1) time complexity.
+/// All operations have O(1) time complexity, except for `clear()` which is O(n).
 pub fn DoublyLinkedList(comptime Node: type) type {
     return struct {
         first: ?*Node = null,
@@ -141,6 +141,15 @@ pub fn DoublyLinkedList(comptime Node: type) type {
         pub inline fn moveToBack(self: *Self, node: *Node) void {
             self.remove(node);
             self.append(node);
+        }
+
+        /// Remove all nodes from the list.
+        pub fn clear(self: *Self) void {
+            while (self.popFirst()) |_| {}
+
+            assert(self.first == null);
+            assert(self.last == null);
+            assert(self.len == 0);
         }
     };
 }

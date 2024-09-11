@@ -53,6 +53,9 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            self.small.clear();
+            self.main.clear();
+            self.ghost.clear();
             self.map.deinit();
         }
 
