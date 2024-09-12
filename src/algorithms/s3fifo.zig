@@ -14,7 +14,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://s3fifo.com/
-pub fn S3FIFO(comptime K: type, comptime V: type) type {
+pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
@@ -24,12 +24,13 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
             // Tracks the access frequency of the node, used for eviction decisions
             freq: u2,
         });
+        const Mutex = if (thread_safe) std.Thread.RwLock else void;
 
         map: Map(Node),
         small: DoublyLinkedList(Node) = .{},
         main: DoublyLinkedList(Node) = .{},
         ghost: DoublyLinkedList(Node) = .{},
-        mutex: std.Thread.RwLock = .{},
+        mutex: Mutex = if (thread_safe) .{} else {},
 
         max_size: u32,
         main_size: usize,
@@ -60,22 +61,22 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -93,8 +94,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             // Ensure cache size doesn't exceed max_size
             while (self.small.len + self.main.len + self.ghost.len >= self.max_size) {
@@ -128,8 +129,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             return if (self.map.remove(key, hash_code)) |node| {
                 // Remove the node from the respective list as well
@@ -206,12 +207,10 @@ pub fn S3FIFO(comptime K: type, comptime V: type) type {
 
 const testing = std.testing;
 
-fn initTestCache(total_size: u32) !utils.TestCache(S3FIFO(u32, []const u8)) {
-    return try utils.TestCache(S3FIFO(u32, []const u8)).init(testing.allocator, total_size);
-}
+const TestCache = utils.TestCache(S3FIFO(u32, []const u8, false));
 
 test "S3FIFO - basic insert and get" {
-    var cache = try initTestCache(10);
+    var cache = try TestCache.init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -222,7 +221,7 @@ test "S3FIFO - basic insert and get" {
 }
 
 test "S3FIFO - overwrite existing key" {
-    var cache = try initTestCache(10);
+    var cache = try TestCache.init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -233,7 +232,7 @@ test "S3FIFO - overwrite existing key" {
 }
 
 test "S3FIFO - remove key" {
-    var cache = try initTestCache(5);
+    var cache = try TestCache.init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -247,7 +246,7 @@ test "S3FIFO - remove key" {
 }
 
 test "S3FIFO - eviction and promotion" {
-    var cache = try initTestCache(5); // Total size: 5 (small: 1, main: 2, ghost: 2)
+    var cache = try TestCache.init(testing.allocator, 5); // Total size: 5 (small: 1, main: 2, ghost: 2)
     defer cache.deinit();
 
     // Fill the cache
@@ -276,7 +275,7 @@ test "S3FIFO - eviction and promotion" {
 }
 
 test "S3FIFO - TTL functionality" {
-    var cache = try initTestCache(5);
+    var cache = try TestCache.init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

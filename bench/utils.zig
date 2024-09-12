@@ -10,15 +10,15 @@ pub const Mode = enum {
     both,
 };
 
-pub const RunConfig = struct {
-    mode: Mode = .single,
-    cache_size: u32 = 10_000,
-    base_size: ?u32 = null,
-    shard_count: u16 = 1,
-    num_keys: u32 = 1_000_000,
-    num_threads: u8 = 1,
-    zipf: f64 = 0.7,
-    duration_ms: u64 = 60_000,
+pub const Config = struct {
+    mode: Mode,
+    cache_size: u32,
+    base_size: ?u32,
+    shard_count: u16,
+    num_keys: u32,
+    num_threads: u8,
+    zipf: f64,
+    duration_ms: u64,
 };
 
 pub const Sample = struct {

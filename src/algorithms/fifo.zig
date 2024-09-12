@@ -9,13 +9,14 @@ const Allocator = std.mem.Allocator;
 /// FIFO is a simple cache eviction policy. In this approach, new items are added
 /// to the back of the queue. When the cache becomes full, the oldest item,
 /// which is at the front of the queue, is evicted to make room for the new item.
-pub fn FIFO(comptime K: type, comptime V: type) type {
+pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
     return struct {
         const Node = @import("../structures/node.zig").Node(K, V, void);
+        const Mutex = if (thread_safe) std.Thread.RwLock else void;
 
         map: Map(Node),
         list: DoublyLinkedList(Node) = .{},
-        mutex: std.Thread.RwLock = .{},
+        mutex: Mutex = if (thread_safe) .{} else {},
 
         const Self = @This();
 
@@ -29,22 +30,22 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -57,8 +58,8 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
             node.* = .{
@@ -78,8 +79,8 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             return if (self.map.remove(key, hash_code)) |node| {
                 self.list.remove(node);
@@ -101,12 +102,10 @@ pub fn FIFO(comptime K: type, comptime V: type) type {
 
 const testing = std.testing;
 
-fn initTestCache(total_size: u32) !utils.TestCache(FIFO(u32, []const u8)) {
-    return try utils.TestCache(FIFO(u32, []const u8)).init(testing.allocator, total_size);
-}
+const TestCache = utils.TestCache(FIFO(u32, []const u8, false));
 
 test "FIFO - basic insert and get" {
-    var cache = try initTestCache(2);
+    var cache = try TestCache.init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -117,7 +116,7 @@ test "FIFO - basic insert and get" {
 }
 
 test "FIFO - overwrite existing key" {
-    var cache = try initTestCache(2);
+    var cache = try TestCache.init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -128,7 +127,7 @@ test "FIFO - overwrite existing key" {
 }
 
 test "FIFO - remove key" {
-    var cache = try initTestCache(1);
+    var cache = try TestCache.init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -142,7 +141,7 @@ test "FIFO - remove key" {
 }
 
 test "FIFO - eviction" {
-    var cache = try initTestCache(3);
+    var cache = try TestCache.init(testing.allocator, 3);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -162,7 +161,7 @@ test "FIFO - eviction" {
 }
 
 test "FIFO - TTL functionality" {
-    var cache = try initTestCache(1);
+    var cache = try TestCache.init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

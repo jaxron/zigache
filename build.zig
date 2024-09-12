@@ -30,13 +30,24 @@ pub fn build(b: *std.Build) void {
     });
 
     // Run Benchmark
+    const options = b.addOptions();
+    options.addOption(?[]const u8, "mode", b.option([]const u8, "mode", "Set the benchmark mode"));
+    options.addOption(?u32, "cache_size", b.option(u32, "cache-size", "Set the cache size"));
+    options.addOption(?u32, "base_size", b.option(u32, "base-size", "Set the base size"));
+    options.addOption(?u16, "shard_count", b.option(u16, "shards", "Set the shard count"));
+    options.addOption(?u32, "num_keys", b.option(u32, "keys", "Set the number of keys"));
+    options.addOption(?u8, "num_threads", b.option(u8, "threads", "Set the number of threads"));
+    options.addOption(?f64, "zipf", b.option(f64, "zipf", "Set the zipfian distribution"));
+    options.addOption(?u64, "duration_ms", b.option(u64, "duration", "Set the duration in milliseconds"));
+
     const exe = b.addExecutable(.{
         .name = "zigache-benchmark",
         .root_source_file = b.path("bench/main.zig"),
         .target = target,
-        .optimize = .ReleaseFast,
+        .optimize = optimize,
     });
     exe.root_module.addImport("zigache", zigache_mod);
+    exe.root_module.addOptions("config", options);
 
     b.installArtifact(exe);
 

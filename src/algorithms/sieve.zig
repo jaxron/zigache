@@ -13,15 +13,16 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://cachemon.github.io/SIEVE-website/
-pub fn SIEVE(comptime K: type, comptime V: type) type {
+pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
     return struct {
         const Node = @import("../structures/node.zig").Node(K, V, struct {
             visited: bool,
         });
+        const Mutex = if (thread_safe) std.Thread.RwLock else void;
 
         map: Map(Node),
         list: DoublyLinkedList(Node) = .{},
-        mutex: std.Thread.RwLock = .{},
+        mutex: Mutex = if (thread_safe) .{} else {},
         hand: ?*Node = null,
 
         const Self = @This();
@@ -36,22 +37,22 @@ pub fn SIEVE(comptime K: type, comptime V: type) type {
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -67,8 +68,8 @@ pub fn SIEVE(comptime K: type, comptime V: type) type {
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
             node.* = .{
@@ -88,8 +89,8 @@ pub fn SIEVE(comptime K: type, comptime V: type) type {
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             return if (self.map.remove(key, hash_code)) |node| {
                 // Adjust the hand if it's pointing to the removed node
@@ -129,12 +130,10 @@ pub fn SIEVE(comptime K: type, comptime V: type) type {
 
 const testing = std.testing;
 
-fn initTestCache(total_size: u32) !utils.TestCache(SIEVE(u32, []const u8)) {
-    return try utils.TestCache(SIEVE(u32, []const u8)).init(testing.allocator, total_size);
-}
+const TestCache = utils.TestCache(SIEVE(u32, []const u8, false));
 
 test "SIEVE - basic insert and get" {
-    var cache = try initTestCache(2);
+    var cache = try TestCache.init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -145,7 +144,7 @@ test "SIEVE - basic insert and get" {
 }
 
 test "SIEVE - overwrite existing key" {
-    var cache = try initTestCache(2);
+    var cache = try TestCache.init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -156,7 +155,7 @@ test "SIEVE - overwrite existing key" {
 }
 
 test "SIEVE - remove key" {
-    var cache = try initTestCache(1);
+    var cache = try TestCache.init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -170,7 +169,7 @@ test "SIEVE - remove key" {
 }
 
 test "SIEVE - eviction" {
-    var cache = try initTestCache(3);
+    var cache = try TestCache.init(testing.allocator, 3);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -192,7 +191,7 @@ test "SIEVE - eviction" {
 }
 
 test "SIEVE - TTL functionality" {
-    var cache = try initTestCache(1);
+    var cache = try TestCache.init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

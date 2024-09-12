@@ -8,20 +8,22 @@ pub const Config = struct {
     total_size: u32,
 
     /// The initial number of nodes to pre-allocate for the entire cache.
-    /// If not specified, it defaults to the `total_size`.
     ///
     /// Pre-allocating memory for cache nodes can improve performance by
     /// reducing the number of allocations needed during cache operations.
     /// However, if `total_size` is a large number, you are highly recommended
     /// to configure this as a high `base_size` would waste memory if the cache
     /// doesn't fill up.
+    ///
+    /// If not specified, it defaults to the `total_size`.
     base_size: ?u32 = null,
 
     /// The number of shards to divide the cache into.
     ///
-    /// Sharding can reduce contention in concurrent scenarios and may improve
-    /// performance by allowing parallel operations on different shards. It
-    /// also adds potential overhead.
+    /// Sharding can reduce contention in concurrent scenarios by dividing
+    /// the cache into multiple independent segments, each with its own lock.
+    /// This allows for parallel operations on different shards, improving
+    /// performance in multi-threaded environments. It also adds overhead.
     ///
     /// This MUST be a power of 2 (e.g., 2, 4, 8, 16, 32, etc.). If not, it will
     /// automatically be rounded up to the nearest power of 2.
@@ -29,6 +31,22 @@ pub const Config = struct {
     /// It's recommended to benchmark your specific use case with different
     /// shard counts to find the optimal configuration.
     shard_count: u16 = 1,
+
+    /// Determines whether the cache should be thread-safe using mutexes.
+    ///
+    /// Using mutexes provides strong consistency guarantees but may introduce
+    /// some performance overhead due to lock contention, especially under high
+    /// concurrency.
+    ///
+    /// This works in conjunction with `shard_count` as each shard gets its own
+    /// mutex, rather than having a single global lock, which reduces contention
+    /// as operations on different shards can proceed in parallel without waiting
+    /// for each other.
+    ///
+    /// Default is true for safety, but can be set to false if you're certain
+    /// the cache will only be accessed from a single thread or if you're
+    /// managing concurrency yourself.
+    thread_safe: bool = true,
 
     /// The eviction policy to use for managing cache entries.
     ///
@@ -51,14 +69,8 @@ pub const Config = struct {
 
 /// Creates a sharded cache for key-value pairs.
 /// This function returns a cache type specialized for the given key and value types.
-pub fn Cache(comptime K: type, comptime V: type) type {
+pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
     return struct {
-        const FIFO = @import("algorithms/fifo.zig").FIFO(K, V);
-        const LRU = @import("algorithms/lru.zig").LRU(K, V);
-        const TinyLFU = @import("algorithms/tinylfu.zig").TinyLFU(K, V);
-        const SIEVE = @import("algorithms/sieve.zig").SIEVE(K, V);
-        const S3FIFO = @import("algorithms/s3fifo.zig").S3FIFO(K, V);
-
         /// A unified interface for different cache implementations.
         pub const CacheImpl = union(Config.EvictionPolicy) {
             // NOTE: While it's better to implement interface-like behavior using
@@ -68,6 +80,13 @@ pub fn Cache(comptime K: type, comptime V: type) type {
             // the trade-offs for now. I may choose revisit this decision in the future
             // when accepted proposals like pinned structs are implemented in Zig as well
             // as certain safety features.
+
+            const FIFO = @import("algorithms/fifo.zig").FIFO(K, V, config.thread_safe);
+            const LRU = @import("algorithms/lru.zig").LRU(K, V, config.thread_safe);
+            const TinyLFU = @import("algorithms/tinylfu.zig").TinyLFU(K, V, config.thread_safe);
+            const SIEVE = @import("algorithms/sieve.zig").SIEVE(K, V, config.thread_safe);
+            const S3FIFO = @import("algorithms/s3fifo.zig").S3FIFO(K, V, config.thread_safe);
+
             FIFO: FIFO,
             LRU: LRU,
             TinyLFU: TinyLFU,
@@ -128,14 +147,14 @@ pub fn Cache(comptime K: type, comptime V: type) type {
         const Self = @This();
 
         /// Initialize a new cache with the given configuration.
-        pub fn init(allocator: std.mem.Allocator, config: Config) !Self {
+        pub fn init(allocator: std.mem.Allocator) !Self {
             const shard_count = try std.math.ceilPowerOfTwo(u16, config.shard_count);
+            const shard_total_size = config.total_size / shard_count;
+            const shard_base_allocation = (config.base_size orelse config.total_size) / shard_count;
 
             const shards = try allocator.alloc(CacheImpl, shard_count);
             errdefer allocator.free(shards);
 
-            const shard_total_size = config.total_size / shard_count;
-            const shard_base_allocation = (config.base_size orelse config.total_size) / shard_count;
             for (shards) |*shard| {
                 shard.* = try CacheImpl.init(allocator, shard_total_size, shard_base_allocation, config.policy);
             }
@@ -211,16 +230,14 @@ pub fn Cache(comptime K: type, comptime V: type) type {
 
 const testing = std.testing;
 
-fn testCache(comptime K: type, comptime V: type) !Cache(K, V) {
-    return try Cache(K, V).init(testing.allocator, .{
-        .total_size = 100,
-        .shard_count = 1,
-        .policy = .FIFO,
-    });
-}
+const TestConfig = Config{
+    .total_size = 100,
+    .shard_count = 1,
+    .policy = .FIFO,
+};
 
 test "Zigache - string keys" {
-    var cache = try testCache([]const u8, []const u8);
+    var cache = try Cache([]const u8, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set("key1", "value1");
@@ -232,7 +249,7 @@ test "Zigache - string keys" {
 }
 
 test "Zigache - overwrite existing string key" {
-    var cache = try testCache([]const u8, []const u8);
+    var cache = try Cache([]const u8, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set("key1", "value1");
@@ -242,7 +259,7 @@ test "Zigache - overwrite existing string key" {
 }
 
 test "Zigache - remove string key" {
-    var cache = try testCache([]const u8, []const u8);
+    var cache = try Cache([]const u8, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set("key1", "value1");
@@ -252,7 +269,7 @@ test "Zigache - remove string key" {
 }
 
 test "Zigache - integer keys" {
-    var cache = try testCache(i32, []const u8);
+    var cache = try Cache(i32, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "one");
@@ -271,7 +288,7 @@ test "Zigache - integer keys" {
 test "Zigache - struct keys" {
     const Point = struct { x: i32, y: i32 };
 
-    var cache = try testCache(Point, []const u8);
+    var cache = try Cache(Point, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(.{ .x = 1, .y = 2 }, "point one-two");
@@ -288,7 +305,7 @@ test "Zigache - struct keys" {
 }
 
 test "Zigache - array keys" {
-    var cache = try testCache([3]u8, []const u8);
+    var cache = try Cache([3]u8, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set([3]u8{ 1, 2, 3 }, "one-two-three");
@@ -309,7 +326,7 @@ test "Zigache - pointer keys" {
     var value2: i32 = 100;
     var value3: i32 = 200;
 
-    var cache = try testCache(*i32, []const u8);
+    var cache = try Cache(*i32, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(&value1, "pointer to 0");
@@ -332,7 +349,7 @@ test "Zigache - enum keys" {
         Blue,
     };
 
-    var cache = try testCache(Color, []const u8);
+    var cache = try Cache(Color, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(.Red, "crimson");
@@ -348,7 +365,7 @@ test "Zigache - enum keys" {
 }
 
 test "Zigache - optional keys" {
-    var cache = try testCache(?i32, []const u8);
+    var cache = try Cache(?i32, []const u8, TestConfig).init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(null, "no value");

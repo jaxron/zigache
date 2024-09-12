@@ -10,13 +10,14 @@ const Allocator = std.mem.Allocator;
 /// what items are used and when. When the cache is full, the item that hasn't
 /// been used for the longest time is evicted. This policy is based on the idea
 /// that items that have been used recently are likely to be used again soon.
-pub fn LRU(comptime K: type, comptime V: type) type {
+pub fn LRU(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
     return struct {
         const Node = @import("../structures/node.zig").Node(K, V, void);
+        const Mutex = if (thread_safe) std.Thread.RwLock else void;
 
         map: Map(Node),
         list: DoublyLinkedList(Node) = .{},
-        mutex: std.Thread.RwLock = .{},
+        mutex: Mutex = if (thread_safe) .{} else {},
 
         const Self = @This();
 
@@ -30,22 +31,22 @@ pub fn LRU(comptime K: type, comptime V: type) type {
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -61,8 +62,8 @@ pub fn LRU(comptime K: type, comptime V: type) type {
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
             node.* = .{
@@ -85,8 +86,8 @@ pub fn LRU(comptime K: type, comptime V: type) type {
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             return if (self.map.remove(key, hash_code)) |node| {
                 self.list.remove(node);
@@ -108,15 +109,10 @@ pub fn LRU(comptime K: type, comptime V: type) type {
 
 const testing = std.testing;
 
-fn initTestCache(total_size: u32) !utils.TestCache(LRU(u32, []const u8)) {
-    return try utils.TestCache(LRU(u32, []const u8)).init(
-        testing.allocator,
-        total_size,
-    );
-}
+const TestCache = utils.TestCache(LRU(u32, []const u8, false));
 
 test "LRU - basic insert and get" {
-    var cache = try initTestCache(2);
+    var cache = try TestCache.init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -128,7 +124,7 @@ test "LRU - basic insert and get" {
 }
 
 test "LRU - overwrite existing key" {
-    var cache = try initTestCache(2);
+    var cache = try TestCache.init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -139,7 +135,7 @@ test "LRU - overwrite existing key" {
 }
 
 test "LRU - remove key" {
-    var cache = try initTestCache(1);
+    var cache = try TestCache.init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -153,7 +149,7 @@ test "LRU - remove key" {
 }
 
 test "LRU - eviction" {
-    var cache = try initTestCache(4);
+    var cache = try TestCache.init(testing.allocator, 4);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -180,7 +176,7 @@ test "LRU - eviction" {
 }
 
 test "LRU - TTL functionality" {
-    var cache = try initTestCache(1);
+    var cache = try TestCache.init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

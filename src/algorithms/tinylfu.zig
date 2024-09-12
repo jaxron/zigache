@@ -14,7 +14,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://arxiv.org/pdf/1512.00727
-pub fn TinyLFU(comptime K: type, comptime V: type) type {
+pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
     return struct {
         const CacheRegion = enum { Window, Probationary, Protected };
         const Node = @import("../structures/node.zig").Node(K, V, struct {
@@ -24,12 +24,13 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
             // Protected: Frequently accessed items in main cache
             region: CacheRegion,
         });
+        const Mutex = if (thread_safe) std.Thread.RwLock else void;
 
         map: Map(Node),
         window: DoublyLinkedList(Node) = .{},
         probationary: DoublyLinkedList(Node) = .{},
         protected: DoublyLinkedList(Node) = .{},
-        mutex: std.Thread.RwLock = .{},
+        mutex: Mutex = if (thread_safe) .{} else {},
 
         sketch: CountMinSketch,
 
@@ -63,22 +64,22 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            if (thread_safe) self.mutex.lockShared();
+            defer if (thread_safe) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -95,8 +96,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
             node.* = .{
@@ -120,8 +121,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            if (thread_safe) self.mutex.lock();
+            defer if (thread_safe) self.mutex.unlock();
 
             if (self.map.remove(key, hash_code)) |node| {
                 // Remove the node from the respective list as well
@@ -196,12 +197,10 @@ pub fn TinyLFU(comptime K: type, comptime V: type) type {
 
 const testing = std.testing;
 
-fn initTestCache(total_size: u32) !utils.TestCache(TinyLFU(u32, []const u8)) {
-    return try utils.TestCache(TinyLFU(u32, []const u8)).init(testing.allocator, total_size);
-}
+const TestCache = utils.TestCache(TinyLFU(u32, []const u8, false));
 
 test "TinyLFU - basic insert and get" {
-    var cache = try initTestCache(10);
+    var cache = try TestCache.init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -212,7 +211,7 @@ test "TinyLFU - basic insert and get" {
 }
 
 test "TinyLFU - overwrite existing key" {
-    var cache = try initTestCache(10);
+    var cache = try TestCache.init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -223,7 +222,7 @@ test "TinyLFU - overwrite existing key" {
 }
 
 test "TinyLFU - remove key" {
-    var cache = try initTestCache(5);
+    var cache = try TestCache.init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -237,7 +236,7 @@ test "TinyLFU - remove key" {
 }
 
 test "TinyLFU - eviction and promotion" {
-    var cache = try initTestCache(5); // Total size: 5 (window: 1, probationary: 1, protected: 3)
+    var cache = try TestCache.init(testing.allocator, 5); // Total size: 5 (window: 1, probationary: 1, protected: 3)
     defer cache.deinit();
 
     // Fill the cache
@@ -268,7 +267,7 @@ test "TinyLFU - eviction and promotion" {
 }
 
 test "TinyLFU - TTL functionality" {
-    var cache = try initTestCache(5);
+    var cache = try TestCache.init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

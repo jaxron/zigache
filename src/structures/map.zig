@@ -118,8 +118,9 @@ pub fn Map(comptime Node: type) type {
             const result = self.map.fetchSwapRemoveAdapted(key, new_ctx);
 
             // NOTE: We don't release the node back to the pool here because
-            // the caller might want to reuse it. For instance, the node might
-            // need to be removed from a list or processed in some way.
+            // there's a possibility it might be destroyed and the caller might
+            // want to reuse it. For instance, the node might need to be removed
+            // from a list or processed in some way.
             return if (result) |kv| kv.value else null;
         }
 

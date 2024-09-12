@@ -6,9 +6,10 @@ const multi_threaded = @import("multi_threaded.zig");
 
 const EvictionPolicy = zigache.Config.EvictionPolicy;
 const BenchmarkResult = utils.BenchmarkResult;
-const RunConfig = utils.RunConfig;
+const Config = utils.Config;
 
-pub fn run(allocator: std.mem.Allocator, config: RunConfig) !void {
+pub fn run(comptime config: Config, allocator: std.mem.Allocator) !void {
+    // Generate keys for the benchmark
     const keys = try utils.generateKeys(allocator, config.num_keys, config.zipf);
     defer {
         for (keys) |sample| {
@@ -17,14 +18,7 @@ pub fn run(allocator: std.mem.Allocator, config: RunConfig) !void {
         allocator.free(keys);
     }
 
-    const policies = [_]EvictionPolicy{
-        .FIFO,
-        .LRU,
-        .TinyLFU,
-        .SIEVE,
-        .S3FIFO,
-    };
-
+    // Run single-threaded benchmark if specified
     if (config.mode == .single or config.mode == .both) {
         std.debug.print("Single Threaded: zipf={d:.2} duration={d:.2}s keys={d} cache-size={d}\n", .{
             config.zipf,
@@ -32,9 +26,10 @@ pub fn run(allocator: std.mem.Allocator, config: RunConfig) !void {
             config.num_keys,
             config.cache_size,
         });
-        try runBenchmarks(allocator, config, keys, &policies, single_threaded.benchSingle);
+        try runBenchmarks(config, single_threaded.SingleThreaded, allocator, keys);
     }
 
+    // Run multi-threaded benchmark if specified
     if (config.mode == .multi or config.mode == .both) {
         std.debug.print("Multi Threaded: zipf={d:.2} duration={d:.2}s keys={d} cache-size={d} shards={d} threads={d}\n", .{
             config.zipf,
@@ -44,24 +39,28 @@ pub fn run(allocator: std.mem.Allocator, config: RunConfig) !void {
             config.shard_count,
             config.num_threads,
         });
-        try runBenchmarks(allocator, config, keys, &policies, multi_threaded.benchMulti);
+        try runBenchmarks(config, multi_threaded.MultiThreaded, allocator, keys);
     }
 }
 
 fn runBenchmarks(
+    comptime config: Config,
+    comptime BenchType: fn (comptime Config, comptime EvictionPolicy) type,
     allocator: std.mem.Allocator,
-    config: RunConfig,
     keys: []const utils.Sample,
-    policies: []const EvictionPolicy,
-    benchFn: fn (std.mem.Allocator, RunConfig, []const utils.Sample, EvictionPolicy) anyerror!BenchmarkResult,
 ) !void {
+    // Get all eviction policies
+    const policies = comptime std.meta.tags(EvictionPolicy);
     var results = try allocator.alloc(BenchmarkResult, policies.len);
     defer allocator.free(results);
 
-    for (policies, 0..) |policy, i| {
-        results[i] = try benchFn(allocator, config, keys, policy);
+    // Run benchmark for each eviction policy
+    inline for (policies, 0..) |policy, i| {
+        const Bench = BenchType(config, policy);
+        results[i] = try Bench.bench(allocator, keys);
     }
 
+    // Print results
     try std.io.getStdOut().writer().print("\r", .{});
     try utils.printResults(allocator, results);
 }
