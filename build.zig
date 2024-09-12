@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 comptime {
-    const min_zig = std.SemanticVersion.parse("0.13.0") catch unreachable;
+    const min_zig = std.SemanticVersion.parse("0.13.0-dev.351+64ef45eb0") catch unreachable;
     if (builtin.zig_version.order(min_zig) == .lt) {
         const error_message =
             \\Oops! It looks like your version of Zig is unsupported.
