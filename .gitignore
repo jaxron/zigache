@@ -1,3 +1,4 @@
 .history
 .zig-cache
+.vscode
 zig-out
