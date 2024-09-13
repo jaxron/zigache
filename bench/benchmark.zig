@@ -96,7 +96,7 @@ pub fn Benchmark(comptime config: Config) type {
                 .duration => |ms| try stdout.print("duration={d:.2}s ", .{@as(f64, @floatFromInt(ms)) / 1000}),
                 .operations => |ops| try stdout.print("operations={d} ", .{ops}),
             }
-            try stdout.print("keys={d} cache-size={d}", .{ config.num_keys, config.cache_size });
+            try stdout.print("keys={d} cache-size={d} zipf={d:.2}", .{ config.num_keys, config.cache_size, config.zipf });
             if (config.execution_mode == .multi) {
                 try stdout.print(" shards={d} threads={d}", .{ config.shard_count, config.num_threads });
             }
