@@ -54,7 +54,7 @@ pub fn Map(comptime Node: type) type {
                 // We allocate an extra node to handle the case where the pool
                 // is full since we acquire a node before the eviction process.
                 // Check the `set` method for more information.
-                .pool = try pool.Pool(Node).init(allocator, total_size + 1),
+                .pool = try pool.Pool(Node).init(allocator, base_size + 1),
                 .capacity = total_size,
             };
             try self.map.ensureTotalCapacity(allocator, base_size + 1);
