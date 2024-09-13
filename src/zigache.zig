@@ -150,13 +150,16 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
         pub fn init(allocator: std.mem.Allocator) !Self {
             const shard_count = try std.math.ceilPowerOfTwo(u16, config.shard_count);
             const shard_total_size = config.total_size / shard_count;
-            const shard_base_allocation = (config.base_size orelse config.total_size) / shard_count;
+            // We allocate an extra node to handle the case where the pool is
+            // full since we acquire a node before the eviction process. Check
+            // the `set` method in the Map implementation for more information.
+            const shard_base_size = (config.base_size orelse config.total_size + 1) / shard_count;
 
             const shards = try allocator.alloc(CacheImpl, shard_count);
             errdefer allocator.free(shards);
 
             for (shards) |*shard| {
-                shard.* = try CacheImpl.init(allocator, shard_total_size, shard_base_allocation, config.policy);
+                shard.* = try CacheImpl.init(allocator, shard_total_size, shard_base_size, config.policy);
             }
 
             return .{

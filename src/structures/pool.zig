@@ -59,7 +59,10 @@ pub fn Pool(comptime Node: type) type {
             const available = self.available;
             if (available == 0) {
                 // Pool is empty, create a new node
-                return self.allocator.create(Node);
+                const node = try self.allocator.create(Node);
+                node.next = null;
+                node.prev = null;
+                return node;
             }
 
             // Get a node from the pool
