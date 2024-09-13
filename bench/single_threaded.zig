@@ -1,7 +1,6 @@
 const std = @import("std");
 const zigache = @import("zigache");
 const utils = @import("utils.zig");
-
 const EvictionPolicy = zigache.Config.EvictionPolicy;
 const BenchmarkResult = utils.BenchmarkResult;
 const Config = utils.Config;
@@ -14,11 +13,10 @@ pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) ty
             }){};
             defer _ = gpa.deinit();
             const local_allocator = gpa.allocator();
-
             const stdout = std.io.getStdOut().writer();
 
             // Initialize the cache with the specified configuration
-            var cache = try zigache.Cache([]const u8, u64, .{
+            var cache = try zigache.Cache(u64, u64, .{
                 .total_size = opts.cache_size,
                 .base_size = opts.base_size,
                 .policy = policy,
@@ -26,21 +24,20 @@ pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) ty
             }).init(local_allocator);
             defer cache.deinit();
 
+            // Main benchmark loop
             var run_time: u64 = 0;
-            var hits: u32 = 0;
-            var misses: u32 = 0;
-            var operations: usize = 0;
-
-            const progress_interval = 1000; // Update progress every 1000 operations
-            try stdout.print("\r{s} Progress: 0.00% complete | Hits: 0 | Misses: 0", .{@tagName(policy)});
+            var hits: u64 = 0;
+            var misses: u64 = 0;
 
             var timer = try std.time.Timer.start();
-            const start_time = timer.read();
+            while (true) {
+                switch (opts.stop_condition) {
+                    .duration => |ms| if (run_time >= ms * std.time.ns_per_ms) break,
+                    .operations => |max_ops| if (hits + misses >= max_ops) break,
+                }
 
-            // Main benchmark loop
-            while (timer.read() - start_time < opts.duration_ms * std.time.ns_per_ms) {
-                const data = keys[operations % keys.len];
-                const op_timer_start = timer.read();
+                const data = keys[(hits + misses) % keys.len];
+                const op_start_time = timer.read();
 
                 // Perform cache operation
                 if (cache.get(data.key)) |_| {
@@ -50,20 +47,27 @@ pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) ty
                     misses += 1;
                 }
 
-                // Update timing and operation count
-                const op_time = timer.read() - op_timer_start;
+                // Update timing and collect sample
+                const op_time = timer.read() - op_start_time;
                 run_time += op_time;
-                operations += 1;
 
                 // Print progress at regular intervals
-                if (operations % progress_interval == 0) {
-                    const elapsed_ms = (timer.read() - start_time) / std.time.ns_per_ms;
-                    const progress_percent = @as(f64, @floatFromInt(elapsed_ms)) / @as(f64, @floatFromInt(opts.duration_ms)) * 100;
-                    try stdout.print("\r{s} - {d:.2}% complete | Hits: {d} | Misses: {d}", .{
+                if ((hits + misses) % 1000 == 0) {
+                    const progress = switch (opts.stop_condition) {
+                        .duration => |ms| blk: {
+                            const elapsed_ns = @as(f64, @floatFromInt(run_time));
+                            const duration_ns = @as(f64, @floatFromInt(ms)) * std.time.ns_per_ms;
+                            break :blk (elapsed_ns / duration_ns) * 100.0;
+                        },
+                        .operations => |max_ops| @as(f64, @floatFromInt(hits + misses)) / @as(f64, @floatFromInt(max_ops)) * 100.0,
+                    };
+
+                    try stdout.print("\r{s} - {d:.2}% complete | Hits: {d} | Misses: {d} | Total Ops: {d}", .{
                         @tagName(policy),
-                        progress_percent,
+                        progress,
                         hits,
                         misses,
+                        hits + misses,
                     });
                 }
             }

@@ -8,20 +8,21 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    try benchmark.run(.{
-        .mode = getMode(),
+    var bench = try benchmark.Benchmark(.{
+        .execution_mode = getExecutionMode(),
+        .stop_condition = getStopCondition(),
         .cache_size = config.cache_size orelse 10_000,
         .base_size = config.base_size,
         .shard_count = config.shard_count orelse 1,
         .num_keys = config.num_keys orelse 1_000_000,
         .num_threads = config.num_threads orelse 1,
         .zipf = config.zipf orelse 0.7,
-        .duration_ms = config.duration_ms orelse 60_000,
-    }, allocator);
+    }).init(allocator);
+    try bench.run();
 }
 
-/// Determine the benchmark mode based on the configuration
-fn getMode() utils.Mode {
+/// Determine the benchmark execution mode based on the configuration
+fn getExecutionMode() utils.ExecutionMode {
     const mode = config.mode orelse return .single;
     if (std.mem.eql(u8, mode, "multi")) {
         return .multi;
@@ -29,6 +30,16 @@ fn getMode() utils.Mode {
         return .both;
     }
     return .single;
+}
+
+/// Determine the stop condition based on the configuration
+fn getStopCondition() utils.StopCondition {
+    if (config.duration_ms) |ms| {
+        return .{ .duration = ms };
+    } else if (config.max_ops) |ops| {
+        return .{ .operations = ops };
+    }
+    return .{ .duration = 60000 };
 }
 
 // Ensure that the zipfian module is included in the build for tests

@@ -39,6 +39,7 @@ pub fn build(b: *std.Build) void {
     options.addOption(?u8, "num_threads", b.option(u8, "threads", "Set the number of threads"));
     options.addOption(?f64, "zipf", b.option(f64, "zipf", "Set the zipfian distribution"));
     options.addOption(?u64, "duration_ms", b.option(u64, "duration", "Set the duration in milliseconds"));
+    options.addOption(?u64, "max_ops", b.option(u64, "ops", "Set the maximum number of operations"));
 
     const exe = b.addExecutable(.{
         .name = "zigache-benchmark",

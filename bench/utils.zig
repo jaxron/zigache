@@ -1,39 +1,43 @@
 const std = @import("std");
 const zigache = @import("zigache");
 
-const Zipfian = @import("Zipfian.zig");
 const EvictionPolicy = zigache.Config.EvictionPolicy;
 
-pub const Mode = enum {
+pub const ExecutionMode = enum {
     single,
     multi,
     both,
 };
 
+pub const StopCondition = union(enum) {
+    duration: u64,
+    operations: u64,
+};
+
 pub const Config = struct {
-    mode: Mode,
+    execution_mode: ExecutionMode,
+    stop_condition: StopCondition,
     cache_size: u32,
     base_size: ?u32,
     shard_count: u16,
     num_keys: u32,
     num_threads: u8,
     zipf: f64,
-    duration_ms: u64,
 };
 
 pub const Sample = struct {
-    key: []const u8,
+    key: u64,
     value: u64,
 };
 
 pub const BenchmarkResult = struct {
     policy: EvictionPolicy,
-    total_ops: u32,
+    total_ops: u64,
     ns_per_op: f64,
     ops_per_second: f64,
     hit_rate: f64,
-    hits: u32,
-    misses: u32,
+    hits: u64,
+    misses: u64,
     memory_mb: f64,
 
     pub fn format(self: BenchmarkResult, allocator: std.mem.Allocator) ![]const u8 {
@@ -50,38 +54,17 @@ pub const BenchmarkResult = struct {
     }
 };
 
-pub fn generateKeys(allocator: std.mem.Allocator, num_keys: u32, s: f64) ![]Sample {
-    var zipf_distribution = try Zipfian.init(num_keys, s);
-    var prng = std.rand.DefaultPrng.init(blk: {
-        var seed: u64 = undefined;
-        try std.posix.getrandom(std.mem.asBytes(&seed));
-        break :blk seed;
-    });
-    const rand = prng.random();
-
-    const keys = try allocator.alloc(Sample, num_keys);
-    errdefer allocator.free(keys);
-
-    for (keys) |*sample| {
-        const value = zipf_distribution.next(rand);
-        sample.key = try std.fmt.allocPrint(allocator, "{d}", .{value});
-        sample.value = value;
-    }
-
-    return keys;
-}
-
 pub fn parseResults(
     policy: EvictionPolicy,
     run_time: u64,
     bytes: usize,
-    hits: u32,
-    misses: u32,
+    hits: u64,
+    misses: u64,
 ) BenchmarkResult {
     const total_ops = hits + misses;
     const hit_rate = @as(f64, @floatFromInt(hits)) / @as(f64, @floatFromInt(total_ops));
     const ns_per_op = @as(f64, @floatFromInt(run_time)) / @as(f64, @floatFromInt(total_ops));
-    const ops_per_second = @as(f64, @floatFromInt(total_ops)) / (@as(f64, @floatFromInt(run_time)) / @as(f64, @floatFromInt(std.time.ns_per_s)));
+    const ops_per_second = @as(f64, @floatFromInt(total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(run_time));
 
     return .{
         .policy = policy,

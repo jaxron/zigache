@@ -8,7 +8,7 @@ const Config = utils.Config;
 
 pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) type {
     return struct {
-        const Cache = zigache.Cache([]const u8, u64, .{
+        const Cache = zigache.Cache(u64, u64, .{
             .total_size = opts.cache_size,
             .base_size = opts.base_size,
             .shard_count = opts.shard_count,
@@ -20,11 +20,9 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
             cache: *Cache,
             keys: []const utils.Sample,
             run_time: u64 = 0,
-            hits: u32 = 0,
-            misses: u32 = 0,
-            samples: []u64,
+            hits: u64 = 0,
+            misses: u64 = 0,
             progress: usize = 0,
-            should_stop: *bool,
         };
 
         pub fn bench(allocator: std.mem.Allocator, keys: []const utils.Sample) !BenchmarkResult {
@@ -40,31 +38,17 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
 
             // Initialize thread contexts
             var contexts = try initThreadContexts(allocator, keys, &cache);
-            defer {
-                for (contexts) |ctx| {
-                    allocator.free(ctx.samples);
-                }
-                allocator.free(contexts);
-            }
+            defer allocator.free(contexts);
 
             // Create threads
             const threads = try allocator.alloc(std.Thread, opts.num_threads);
             defer allocator.free(threads);
 
-            var should_stop = false;
-            var timer = try std.time.Timer.start();
-            const start_time = timer.read();
-
-            // Set up stop condition for all threads
-            for (contexts) |*ctx| {
-                ctx.should_stop = &should_stop;
-            }
-
             // Spawn threads and start benchmarking
             for (threads, 0..) |*thread, i| {
                 thread.* = try std.Thread.spawn(.{}, runThreadBenchmark(), .{&contexts[i]});
             }
-            try monitorProgress(stdout, &contexts, start_time, &should_stop, &timer);
+            try monitorProgress(stdout, &contexts);
 
             for (threads) |thread| {
                 thread.join();
@@ -85,9 +69,6 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
                 ctx.* = .{
                     .cache = cache,
                     .keys = keys[start..end],
-                    .samples = try allocator.alloc(u64, end - start),
-                    .progress = 0,
-                    .should_stop = undefined,
                 };
             }
 
@@ -97,12 +78,20 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
         fn runThreadBenchmark() fn (*ThreadContext) void {
             return struct {
                 fn run(ctx: *ThreadContext) void {
-                    var timer = std.time.Timer.start() catch return;
-                    var i: usize = 0;
+                    var timer = std.time.Timer.start() catch {
+                        std.debug.print("Failed to start timer\n", .{});
+                        return;
+                    };
 
-                    while (!ctx.should_stop.*) {
+                    var i: usize = 0;
+                    while (true) : (i += 1) {
+                        switch (opts.stop_condition) {
+                            .duration => |ms| if (ctx.run_time >= ms * std.time.ns_per_ms) break,
+                            .operations => |max_ops| if (ctx.hits + ctx.misses >= max_ops / opts.num_threads) break,
+                        }
+
                         const data = ctx.keys[i % ctx.keys.len];
-                        timer.reset();
+                        const op_start_time = timer.read();
 
                         if (ctx.cache.get(data.key)) |_| {
                             ctx.hits += 1;
@@ -111,10 +100,8 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
                             ctx.misses += 1;
                         }
 
-                        ctx.samples[i % ctx.samples.len] = timer.read();
-                        ctx.run_time += ctx.samples[i % ctx.samples.len];
-                        ctx.progress += 1;
-                        i += 1;
+                        const op_time = timer.read() - op_start_time;
+                        ctx.run_time += op_time;
                     }
                 }
             }.run;
@@ -123,50 +110,49 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
         fn monitorProgress(
             stdout: std.fs.File.Writer,
             contexts: *[]ThreadContext,
-            start_time: u64,
-            should_stop: *bool,
-            timer: *std.time.Timer,
         ) !void {
-            const progress_interval = 1000;
-            var last_progress_update: usize = 0;
-
-            while (timer.read() - start_time < opts.duration_ms * std.time.ns_per_ms) {
-                var total_progress: usize = 0;
+            while (true) {
+                var total_ops: u64 = 0;
+                var total_run_time: u64 = 0;
                 for (contexts.*) |ctx| {
-                    total_progress += ctx.progress;
+                    total_ops += ctx.hits + ctx.misses;
+                    total_run_time += ctx.run_time;
                 }
 
-                if (total_progress >= last_progress_update + progress_interval) {
-                    try printProgress(stdout, contexts, start_time, timer);
-                    last_progress_update = total_progress;
+                switch (opts.stop_condition) {
+                    .duration => |ms| if (total_run_time >= ms * opts.num_threads * std.time.ns_per_ms) break,
+                    .operations => |max_ops| if (total_ops >= max_ops) break,
                 }
 
+                try printProgress(stdout, contexts, total_ops, total_run_time);
                 std.time.sleep(10 * std.time.ns_per_ms);
             }
-
-            should_stop.* = true;
         }
 
         fn printProgress(
             stdout: std.fs.File.Writer,
             contexts: *[]ThreadContext,
-            start_time: u64,
-            timer: *std.time.Timer,
+            total_ops: u64,
+            total_run_time: u64,
         ) !void {
-            var total_hits: u32 = 0;
-            var total_misses: u32 = 0;
+            var total_hits: u64 = 0;
+            var total_misses: u64 = 0;
             for (contexts.*) |ctx| {
                 total_hits += ctx.hits;
                 total_misses += ctx.misses;
             }
 
-            const elapsed_ms = (timer.read() - start_time) / std.time.ns_per_ms;
-            const progress_percent = @as(f64, @floatFromInt(elapsed_ms)) / @as(f64, @floatFromInt(opts.duration_ms)) * 100;
-            try stdout.print("\r{s} - {d:.2}% complete | Hits: {d} | Misses: {d}", .{
+            const progress = switch (opts.stop_condition) {
+                .duration => |ms| @as(f64, @floatFromInt(total_run_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)) * 100.0,
+                .operations => |max_ops| @as(f64, @floatFromInt(total_ops)) / @as(f64, @floatFromInt(max_ops)) * 100.0,
+            };
+
+            try stdout.print("\r{s} - {d:.2}% complete | Hits: {d} | Misses: {d} | Total Ops: {d}", .{
                 @tagName(policy),
-                progress_percent,
+                progress,
                 total_hits,
                 total_misses,
+                total_ops,
             });
         }
 
@@ -176,9 +162,8 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
             bytes: *usize,
         ) !BenchmarkResult {
             var total_run_time: u64 = 0;
-            var total_hits: u32 = 0;
-            var total_misses: u32 = 0;
-
+            var total_hits: u64 = 0;
+            var total_misses: u64 = 0;
             for (contexts) |ctx| {
                 total_run_time += ctx.run_time;
                 total_hits += ctx.hits;
