@@ -9,11 +9,11 @@ const Config = utils.Config;
 pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) type {
     return struct {
         const Cache = zigache.Cache(u64, u64, .{
-            .total_size = opts.cache_size,
-            .base_size = opts.base_size,
+            .cache_size = opts.cache_size,
+            .pool_size = opts.pool_size,
             .shard_count = opts.shard_count,
             .policy = policy,
-            .thread_safe = true,
+            .thread_safety = true,
         });
 
         const ThreadContext = struct {

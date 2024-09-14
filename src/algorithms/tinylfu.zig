@@ -14,7 +14,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://arxiv.org/pdf/1512.00727
-pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
+pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
     return struct {
         const CacheRegion = enum { Window, Probationary, Protected };
         const Node = @import("../structures/node.zig").Node(K, V, struct {
@@ -24,13 +24,13 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safe: bool) t
             // Protected: Frequently accessed items in main cache
             region: CacheRegion,
         });
-        const Mutex = if (thread_safe) std.Thread.RwLock else void;
+        const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map(Node),
         window: DoublyLinkedList(Node) = .{},
         probationary: DoublyLinkedList(Node) = .{},
         protected: DoublyLinkedList(Node) = .{},
-        mutex: Mutex = if (thread_safe) .{} else {},
+        mutex: Mutex = if (thread_safety) .{} else {},
 
         sketch: CountMinSketch,
 
@@ -40,15 +40,15 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safe: bool) t
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32) !Self {
-            const window_size = @max(1, total_size * 1 / 100); // 1% window cache
-            const main_size = total_size - window_size;
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
+            const window_size = @max(1, cache_size * 1 / 100); // 1% window cache
+            const main_size = cache_size - window_size;
             const protected_size = @max(1, main_size * 8 / 10); // 80% of main cache
             const probationary_size = @max(1, main_size - protected_size); // 20% of main cache
 
             return .{
-                .map = try Map(Node).init(allocator, total_size, base_size),
-                .sketch = try CountMinSketch.init(allocator, total_size, 4),
+                .map = try Map(Node).init(allocator, cache_size, pool_size),
+                .sketch = try CountMinSketch.init(allocator, cache_size, 4),
                 .window_size = window_size,
                 .probationary_size = probationary_size,
                 .protected_size = protected_size,
@@ -64,22 +64,22 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safe: bool) t
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            if (thread_safe) self.mutex.lockShared();
-            defer if (thread_safe) self.mutex.unlockShared();
+            if (thread_safety) self.mutex.lockShared();
+            defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            if (thread_safe) self.mutex.lockShared();
-            defer if (thread_safe) self.mutex.unlockShared();
+            if (thread_safety) self.mutex.lockShared();
+            defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -96,8 +96,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safe: bool) t
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
             node.* = .{
@@ -121,8 +121,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safe: bool) t
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.remove(key, hash_code)) |node| {
                 // Remove the node from the respective list as well

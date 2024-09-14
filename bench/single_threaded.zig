@@ -17,10 +17,10 @@ pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) ty
 
             // Initialize the cache with the specified configuration
             var cache = try zigache.Cache(u64, u64, .{
-                .total_size = opts.cache_size,
-                .base_size = opts.base_size,
+                .cache_size = opts.cache_size,
+                .pool_size = opts.pool_size,
                 .policy = policy,
-                .thread_safe = false,
+                .thread_safety = false,
             }).init(local_allocator);
             defer cache.deinit();
 

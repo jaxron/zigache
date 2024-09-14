@@ -9,19 +9,19 @@ const Allocator = std.mem.Allocator;
 /// FIFO is a simple cache eviction policy. In this approach, new items are added
 /// to the back of the queue. When the cache becomes full, the oldest item,
 /// which is at the front of the queue, is evicted to make room for the new item.
-pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
+pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
     return struct {
         const Node = @import("../structures/node.zig").Node(K, V, void);
-        const Mutex = if (thread_safe) std.Thread.RwLock else void;
+        const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map(Node),
         list: DoublyLinkedList(Node) = .{},
-        mutex: Mutex = if (thread_safe) .{} else {},
+        mutex: Mutex = if (thread_safety) .{} else {},
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32) !Self {
-            return .{ .map = try Map(Node).init(allocator, total_size, base_size) };
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
+            return .{ .map = try Map(Node).init(allocator, cache_size, pool_size) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -30,22 +30,22 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) type
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            if (thread_safe) self.mutex.lockShared();
-            defer if (thread_safe) self.mutex.unlockShared();
+            if (thread_safety) self.mutex.lockShared();
+            defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            if (thread_safe) self.mutex.lockShared();
-            defer if (thread_safe) self.mutex.unlockShared();
+            if (thread_safety) self.mutex.lockShared();
+            defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -58,8 +58,8 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) type
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
             node.* = .{
@@ -79,8 +79,8 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) type
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             return if (self.map.remove(key, hash_code)) |node| {
                 self.list.remove(node);

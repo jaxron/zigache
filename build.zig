@@ -33,7 +33,7 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption(?[]const u8, "mode", b.option([]const u8, "mode", "Set the benchmark mode"));
     options.addOption(?u32, "cache_size", b.option(u32, "cache-size", "Set the cache size"));
-    options.addOption(?u32, "base_size", b.option(u32, "base-size", "Set the base size"));
+    options.addOption(?u32, "pool_size", b.option(u32, "pool-size", "Set the base size"));
     options.addOption(?u16, "shard_count", b.option(u16, "shards", "Set the shard count"));
     options.addOption(?u32, "num_keys", b.option(u32, "keys", "Set the number of keys"));
     options.addOption(?u8, "num_threads", b.option(u8, "threads", "Set the number of threads"));

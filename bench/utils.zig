@@ -18,7 +18,7 @@ pub const Config = struct {
     execution_mode: ExecutionMode,
     stop_condition: StopCondition,
     cache_size: u32,
-    base_size: ?u32,
+    pool_size: ?u32,
     shard_count: u16,
     num_keys: u32,
     num_threads: u8,

@@ -48,13 +48,13 @@ pub fn Map(comptime Node: type) type {
         const Self = @This();
 
         /// Initializes a new Map with the specified capacity and pre-allocation size.
-        pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             var self = Self{
                 .allocator = allocator,
-                .pool = try pool.Pool(Node).init(allocator, base_size),
-                .capacity = total_size,
+                .pool = try pool.Pool(Node).init(allocator, pool_size),
+                .capacity = cache_size,
             };
-            try self.map.ensureTotalCapacity(allocator, base_size);
+            try self.map.ensureTotalCapacity(allocator, pool_size);
 
             return self;
         }

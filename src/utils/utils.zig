@@ -13,9 +13,9 @@ pub fn TestCache(comptime Cache: type) type {
 
         const Self = @This();
 
-        pub fn init(allocator: Allocator, total_size: K) !Self {
+        pub fn init(allocator: Allocator, cache_size: K) !Self {
             return .{
-                .cache = try Cache.init(allocator, total_size, total_size),
+                .cache = try Cache.init(allocator, cache_size, cache_size),
             };
         }
 

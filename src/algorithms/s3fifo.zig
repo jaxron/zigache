@@ -14,7 +14,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://s3fifo.com/
-pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) type {
+pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
@@ -24,13 +24,13 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) ty
             // Tracks the access frequency of the node, used for eviction decisions
             freq: u2,
         });
-        const Mutex = if (thread_safe) std.Thread.RwLock else void;
+        const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map(Node),
         small: DoublyLinkedList(Node) = .{},
         main: DoublyLinkedList(Node) = .{},
         ghost: DoublyLinkedList(Node) = .{},
-        mutex: Mutex = if (thread_safe) .{} else {},
+        mutex: Mutex = if (thread_safety) .{} else {},
 
         max_size: u32,
         main_size: usize,
@@ -39,13 +39,13 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) ty
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             // Allocate 10% of total size to small queue, and split the rest between main and ghost
-            const small_size = @max(1, total_size / 10);
-            const other_size = @max(1, (total_size - small_size) / 2);
+            const small_size = @max(1, cache_size / 10);
+            const other_size = @max(1, (cache_size - small_size) / 2);
 
             return .{
-                .map = try Map(Node).init(allocator, total_size, base_size),
+                .map = try Map(Node).init(allocator, cache_size, pool_size),
                 .max_size = small_size + other_size * 2,
                 .main_size = other_size,
                 .small_size = small_size,
@@ -61,22 +61,22 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) ty
         }
 
         pub fn contains(self: *Self, key: K, hash_code: u64) bool {
-            if (thread_safe) self.mutex.lockShared();
-            defer if (thread_safe) self.mutex.unlockShared();
+            if (thread_safety) self.mutex.lockShared();
+            defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
         pub fn count(self: *Self) usize {
-            if (thread_safe) self.mutex.lockShared();
-            defer if (thread_safe) self.mutex.unlockShared();
+            if (thread_safety) self.mutex.lockShared();
+            defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.count();
         }
 
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
@@ -94,8 +94,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) ty
         }
 
         pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             // Ensure cache size doesn't exceed max_size
             while (self.small.len + self.main.len + self.ghost.len >= self.max_size) {
@@ -129,8 +129,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safe: bool) ty
         }
 
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
-            if (thread_safe) self.mutex.lock();
-            defer if (thread_safe) self.mutex.unlock();
+            if (thread_safety) self.mutex.lock();
+            defer if (thread_safety) self.mutex.unlock();
 
             return if (self.map.remove(key, hash_code)) |node| {
                 // Remove the node from the respective list as well

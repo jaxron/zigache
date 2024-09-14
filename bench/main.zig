@@ -12,7 +12,7 @@ pub fn main() !void {
         .execution_mode = getExecutionMode(),
         .stop_condition = getStopCondition(),
         .cache_size = config.cache_size orelse 10_000,
-        .base_size = config.base_size,
+        .pool_size = config.pool_size,
         .shard_count = config.shard_count orelse 1,
         .num_keys = config.num_keys orelse 1_000_000,
         .num_threads = config.num_threads orelse 1,

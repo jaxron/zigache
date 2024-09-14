@@ -5,18 +5,18 @@ pub fn main() !void {}
 
 pub const Config = struct {
     // The maximum number of items the cache can hold before it starts evicting.
-    total_size: u32,
+    cache_size: u32,
 
     /// The initial number of nodes to pre-allocate for the entire cache.
     ///
     /// Pre-allocating memory for cache nodes can improve performance by
     /// reducing the number of allocations needed during cache operations.
-    /// However, if `total_size` is a large number, you are highly recommended
-    /// to configure this as a high `base_size` would waste memory if the cache
+    /// However, if `cache_size` is a large number, you are highly recommended
+    /// to configure this as a high `pool_size` would waste memory if the cache
     /// doesn't fill up.
     ///
-    /// If not specified, it defaults to the `total_size`.
-    base_size: ?u32 = null,
+    /// If not specified, it defaults to the `cache_size`.
+    pool_size: ?u32 = null,
 
     /// The number of shards to divide the cache into.
     ///
@@ -46,7 +46,7 @@ pub const Config = struct {
     /// Default is true for safety, but can be set to false if you're certain
     /// the cache will only be accessed from a single thread or if you're
     /// managing concurrency yourself.
-    thread_safe: bool = true,
+    thread_safety: bool = true,
 
     /// The eviction policy to use for managing cache entries.
     ///
@@ -81,11 +81,11 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             // when accepted proposals like pinned structs are implemented in Zig as well
             // as certain safety features.
 
-            const FIFO = @import("algorithms/fifo.zig").FIFO(K, V, config.thread_safe);
-            const LRU = @import("algorithms/lru.zig").LRU(K, V, config.thread_safe);
-            const TinyLFU = @import("algorithms/tinylfu.zig").TinyLFU(K, V, config.thread_safe);
-            const SIEVE = @import("algorithms/sieve.zig").SIEVE(K, V, config.thread_safe);
-            const S3FIFO = @import("algorithms/s3fifo.zig").S3FIFO(K, V, config.thread_safe);
+            const FIFO = @import("algorithms/fifo.zig").FIFO(K, V, config.thread_safety);
+            const LRU = @import("algorithms/lru.zig").LRU(K, V, config.thread_safety);
+            const TinyLFU = @import("algorithms/tinylfu.zig").TinyLFU(K, V, config.thread_safety);
+            const SIEVE = @import("algorithms/sieve.zig").SIEVE(K, V, config.thread_safety);
+            const S3FIFO = @import("algorithms/s3fifo.zig").S3FIFO(K, V, config.thread_safety);
 
             FIFO: FIFO,
             LRU: LRU,
@@ -93,13 +93,13 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             SIEVE: SIEVE,
             S3FIFO: S3FIFO,
 
-            pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32, policy: Config.EvictionPolicy) !CacheImpl {
+            pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, policy: Config.EvictionPolicy) !CacheImpl {
                 return switch (policy) {
-                    .FIFO => .{ .FIFO = try FIFO.init(allocator, total_size, base_size) },
-                    .LRU => .{ .LRU = try LRU.init(allocator, total_size, base_size) },
-                    .TinyLFU => .{ .TinyLFU = try TinyLFU.init(allocator, total_size, base_size) },
-                    .SIEVE => .{ .SIEVE = try SIEVE.init(allocator, total_size, base_size) },
-                    .S3FIFO => .{ .S3FIFO = try S3FIFO.init(allocator, total_size, base_size) },
+                    .FIFO => .{ .FIFO = try FIFO.init(allocator, cache_size, pool_size) },
+                    .LRU => .{ .LRU = try LRU.init(allocator, cache_size, pool_size) },
+                    .TinyLFU => .{ .TinyLFU = try TinyLFU.init(allocator, cache_size, pool_size) },
+                    .SIEVE => .{ .SIEVE = try SIEVE.init(allocator, cache_size, pool_size) },
+                    .S3FIFO => .{ .S3FIFO = try S3FIFO.init(allocator, cache_size, pool_size) },
                 };
             }
 
@@ -149,17 +149,17 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
         /// Initialize a new cache with the given configuration.
         pub fn init(allocator: std.mem.Allocator) !Self {
             const shard_count = try std.math.ceilPowerOfTwo(u16, config.shard_count);
-            const shard_total_size = config.total_size / shard_count;
+            const shard_cache_size = config.cache_size / shard_count;
             // We allocate an extra node to handle the case where the pool is
             // full since we acquire a node before the eviction process. Check
             // the `set` method in the Map implementation for more information.
-            const shard_base_size = (config.base_size orelse config.total_size + 1) / shard_count;
+            const shard_pool_size = (config.pool_size orelse config.cache_size + 1) / shard_count;
 
             const shards = try allocator.alloc(CacheImpl, shard_count);
             errdefer allocator.free(shards);
 
             for (shards) |*shard| {
-                shard.* = try CacheImpl.init(allocator, shard_total_size, shard_base_size, config.policy);
+                shard.* = try CacheImpl.init(allocator, shard_cache_size, shard_pool_size, config.policy);
             }
 
             return .{
@@ -234,7 +234,7 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
 const testing = std.testing;
 
 const TestConfig = Config{
-    .total_size = 100,
+    .cache_size = 100,
     .shard_count = 1,
     .policy = .FIFO,
 };
