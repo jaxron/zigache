@@ -1,8 +1,9 @@
 const std = @import("std");
-const utils = @import("../utils/utils.zig");
+const zigache = @import("../zigache.zig");
+const utils = zigache.utils;
 const assert = std.debug.assert;
 
-const CountMinSketch = @import("../structures/cms.zig").CountMinSketch;
+const CountMinSketch = zigache.CountMinSketch;
 const Allocator = std.mem.Allocator;
 
 /// W-TinyLFU is a hybrid cache eviction policy that combines a small window
@@ -24,9 +25,9 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool)
             region: CacheRegion,
         };
 
-        const Node = @import("../structures/node.zig").Node(K, V, Data);
-        const Map = @import("../structures/map.zig").Map(K, V, Data);
-        const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList(K, V, Data);
+        const Node = zigache.Node(K, V, Data);
+        const Map = zigache.Map(K, V, Data);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,

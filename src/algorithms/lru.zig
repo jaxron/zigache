@@ -1,5 +1,6 @@
 const std = @import("std");
-const utils = @import("../utils/utils.zig");
+const zigache = @import("../zigache.zig");
+const utils = zigache.utils;
 const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
@@ -10,9 +11,9 @@ const Allocator = std.mem.Allocator;
 /// that items that have been used recently are likely to be used again soon.
 pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
     return struct {
-        const Node = @import("../structures/node.zig").Node(K, V, void);
-        const Map = @import("../structures/map.zig").Map(K, V, void);
-        const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList(K, V, void);
+        const Node = zigache.Node(K, V, void);
+        const Map = zigache.Map(K, V, void);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,

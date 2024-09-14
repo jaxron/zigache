@@ -1,5 +1,18 @@
 const std = @import("std");
-const utils = @import("utils/utils.zig");
+
+pub const FIFO = @import("algorithms/fifo.zig").FIFO;
+pub const LRU = @import("algorithms/lru.zig").LRU;
+pub const TinyLFU = @import("algorithms/tinylfu.zig").TinyLFU;
+pub const SIEVE = @import("algorithms/sieve.zig").SIEVE;
+pub const S3FIFO = @import("algorithms/s3fifo.zig").S3FIFO;
+
+pub const CountMinSketch = @import("structures/cms.zig").CountMinSketch;
+pub const DoublyLinkedList = @import("structures/dbl.zig").DoublyLinkedList;
+pub const Map = @import("structures/map.zig").Map;
+pub const Node = @import("structures/node.zig").Node;
+pub const Pool = @import("structures/pool.zig").Pool;
+
+pub const utils = @import("utils/utils.zig");
 
 pub fn main() !void {}
 
@@ -81,25 +94,25 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             // when accepted proposals like pinned structs are implemented in Zig as well
             // as certain safety features.
 
-            const FIFO = @import("algorithms/fifo.zig").FIFO(K, V, config.thread_safety);
-            const LRU = @import("algorithms/lru.zig").LRU(K, V, config.thread_safety);
-            const TinyLFU = @import("algorithms/tinylfu.zig").TinyLFU(K, V, config.thread_safety);
-            const SIEVE = @import("algorithms/sieve.zig").SIEVE(K, V, config.thread_safety);
-            const S3FIFO = @import("algorithms/s3fifo.zig").S3FIFO(K, V, config.thread_safety);
+            const _FIFO = FIFO(K, V, config.thread_safety);
+            const _LRU = LRU(K, V, config.thread_safety);
+            const _TinyLFU = TinyLFU(K, V, config.thread_safety);
+            const _SIEVE = SIEVE(K, V, config.thread_safety);
+            const _S3FIFO = S3FIFO(K, V, config.thread_safety);
 
-            FIFO: FIFO,
-            LRU: LRU,
-            TinyLFU: TinyLFU,
-            SIEVE: SIEVE,
-            S3FIFO: S3FIFO,
+            FIFO: _FIFO,
+            LRU: _LRU,
+            TinyLFU: _TinyLFU,
+            SIEVE: _SIEVE,
+            S3FIFO: _S3FIFO,
 
             pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, policy: Config.EvictionPolicy) !CacheImpl {
                 return switch (policy) {
-                    .FIFO => .{ .FIFO = try FIFO.init(allocator, cache_size, pool_size) },
-                    .LRU => .{ .LRU = try LRU.init(allocator, cache_size, pool_size) },
-                    .TinyLFU => .{ .TinyLFU = try TinyLFU.init(allocator, cache_size, pool_size) },
-                    .SIEVE => .{ .SIEVE = try SIEVE.init(allocator, cache_size, pool_size) },
-                    .S3FIFO => .{ .S3FIFO = try S3FIFO.init(allocator, cache_size, pool_size) },
+                    .FIFO => .{ .FIFO = try _FIFO.init(allocator, cache_size, pool_size) },
+                    .LRU => .{ .LRU = try _LRU.init(allocator, cache_size, pool_size) },
+                    .TinyLFU => .{ .TinyLFU = try _TinyLFU.init(allocator, cache_size, pool_size) },
+                    .SIEVE => .{ .SIEVE = try _SIEVE.init(allocator, cache_size, pool_size) },
+                    .S3FIFO => .{ .S3FIFO = try _S3FIFO.init(allocator, cache_size, pool_size) },
                 };
             }
 

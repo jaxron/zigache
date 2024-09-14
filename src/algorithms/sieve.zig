@@ -1,5 +1,6 @@
 const std = @import("std");
-const utils = @import("../utils/utils.zig");
+const zigache = @import("../zigache.zig");
+const utils = zigache.utils;
 const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
@@ -17,9 +18,9 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool) t
             visited: bool,
         };
 
-        const Node = @import("../structures/node.zig").Node(K, V, Data);
-        const Map = @import("../structures/map.zig").Map(K, V, Data);
-        const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList(K, V, Data);
+        const Node = zigache.Node(K, V, Data);
+        const Map = zigache.Map(K, V, Data);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,

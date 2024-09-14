@@ -1,6 +1,6 @@
 const std = @import("std");
-const pool = @import("pool.zig");
-const utils = @import("../utils/utils.zig");
+const zigache = @import("../zigache.zig");
+const utils = zigache.utils;
 const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
@@ -9,7 +9,8 @@ const Allocator = std.mem.Allocator;
 /// It uses a hash map for fast lookups and a node pool for efficient memory management.
 pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
     return struct {
-        const Node = @import("node.zig").Node(K, V, Data);
+        const Node = zigache.Node(K, V, Data);
+        const Pool = zigache.Pool(Node);
 
         /// Uses StringArrayHashMapUnmanaged for string keys,
         /// and AutoArrayHashMapUnmanaged for other types.
@@ -43,7 +44,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
 
         allocator: std.mem.Allocator,
         map: HashMapType = .{},
-        pool: pool.Pool(Node),
+        pool: Pool,
         capacity: usize,
 
         const Self = @This();
@@ -52,7 +53,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             var self = Self{
                 .allocator = allocator,
-                .pool = try pool.Pool(Node).init(allocator, pool_size),
+                .pool = try Pool.init(allocator, pool_size),
                 .capacity = cache_size,
             };
             try self.map.ensureTotalCapacity(allocator, pool_size);
@@ -148,7 +149,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
 const testing = std.testing;
 
 const TestMap = Map([]const u8, u32, void);
-const TestNode = @import("node.zig").Node([]const u8, u32, void);
+const TestNode = zigache.Node([]const u8, u32, void);
 
 test "Map - init and deinit" {
     var map = try TestMap.init(testing.allocator, 100, 10);

@@ -1,5 +1,5 @@
 const std = @import("std");
-
+const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
 /// A generic doubly-linked list modified from Zig's std library.
@@ -8,7 +8,7 @@ const assert = std.debug.assert;
 /// All operations have O(1) time complexity, except for `clear()` which is O(n).
 pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type) type {
     return struct {
-        const Node = @import("node.zig").Node(K, V, Data);
+        const Node = zigache.Node(K, V, Data);
 
         first: ?*Node = null,
         last: ?*Node = null,
@@ -159,7 +159,7 @@ pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type)
 const testing = std.testing;
 
 const TestList = DoublyLinkedList(u32, u32, void);
-const TestNode = @import("node.zig").Node(u32, u32, void);
+const TestNode = zigache.Node(u32, u32, void);
 
 fn initTestNode(value: u32) TestNode {
     return .{
