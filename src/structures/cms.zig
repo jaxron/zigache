@@ -77,3 +77,72 @@ pub const CountMinSketch = struct {
         }
     }
 };
+
+const testing = std.testing;
+
+test "CountMinSketch - initialization" {
+    var cms = try CountMinSketch.init(testing.allocator, 10, 5);
+    defer cms.deinit();
+
+    try testing.expectEqual(10, cms.width);
+    try testing.expectEqual(5, cms.depth);
+}
+
+test "CountMinSketch - increment and estimate" {
+    var cms = try CountMinSketch.init(testing.allocator, 100, 5);
+    defer cms.deinit();
+
+    const item1: u64 = 123;
+    const item2: u64 = 456;
+
+    // Increment item1 three times
+    cms.increment(item1);
+    cms.increment(item1);
+    cms.increment(item1);
+
+    // Increment item2 once
+    cms.increment(item2);
+
+    // Check estimates
+    try testing.expectEqual(3, cms.estimate(item1));
+    try testing.expectEqual(1, cms.estimate(item2));
+
+    // Check estimate for non-existent item
+    try testing.expectEqual(0, cms.estimate(321));
+}
+
+test "CountMinSketch - overflow and reset" {
+    var cms = try CountMinSketch.init(testing.allocator, 10, 3);
+    defer cms.deinit();
+
+    const item: u64 = 123;
+
+    // Increment the item 20 times
+    var i: usize = 0;
+    while (i < 20) : (i += 1) {
+        cms.increment(item);
+    }
+
+    // The estimate should be less than 12 due to the reset
+    const estimate = cms.estimate(item);
+    try testing.expect(estimate == 12);
+}
+
+test "CountMinSketch - multiple items" {
+    var cms = try CountMinSketch.init(testing.allocator, 100, 5);
+    defer cms.deinit();
+
+    const items = [_]u64{ 1, 2, 3, 4, 5 };
+    const increments = [_]usize{ 3, 1, 4, 1, 5 };
+
+    for (items, increments) |item, count| {
+        for (0..count) |_| {
+            cms.increment(item);
+        }
+    }
+
+    for (items, increments) |item, expected| {
+        const estimate = cms.estimate(item);
+        try testing.expectEqual(expected, estimate);
+    }
+}
