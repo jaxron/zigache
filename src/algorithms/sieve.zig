@@ -57,6 +57,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool) t
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
                     self.list.remove(node);
+                    self.map.pool.release(node);
                     return null;
                 }
 

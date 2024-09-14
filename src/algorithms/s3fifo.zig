@@ -81,6 +81,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) 
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
                     self.removeFromList(node);
+                    self.map.pool.release(node);
                     return null;
                 }
 

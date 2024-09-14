@@ -50,6 +50,7 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) ty
             if (self.map.get(key, hash_code)) |node| {
                 if (self.map.checkTTL(node)) {
                     self.list.remove(node);
+                    self.map.pool.release(node);
                     return null;
                 }
                 return node.value;
