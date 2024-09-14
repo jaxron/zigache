@@ -124,13 +124,16 @@ pub fn Map(comptime Node: type) type {
         /// Checks if a node has expired based on its TTL (Time-To-Live).
         /// The node is not released back to the pool, allowing the caller to reuse it.
         /// Returns true if the node has expired and was removed, false otherwise.
-        pub fn checkTTL(self: *Self, node: *Node) bool {
+        pub fn checkTTL(self: *Self, node: *Node, hash_code: ?u64) bool {
             if (node.expiry) |expiry| {
                 // If the current time is greater than or equal to the expiry time,
                 // the node has expired and should be removed from the map.
                 const now = std.time.milliTimestamp();
                 if (now >= expiry) {
-                    assert(self.map.swapRemove(node.key));
+                    const expired_node = self.remove(node.key, hash_code);
+                    assert(expired_node != null);
+                    assert(expired_node == node);
+
                     return true;
                 }
             }
@@ -236,7 +239,7 @@ test "Map - checkTTL" {
         .expiry = std.time.milliTimestamp() - 1000, // Set expiry to 1 second ago
     };
 
-    try testing.expect(map.checkTTL(node));
+    try testing.expect(map.checkTTL(node, hash_code));
     try testing.expect(map.get(key, hash_code) == null);
     map.pool.release(node);
 }
