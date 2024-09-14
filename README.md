@@ -6,13 +6,13 @@
 </h1>
 
 <p align="center">
-  <em><b>Zigache</b> is an efficient caching library implemented in <a href="https://ziglang.org/">Zig</a>, offering various cache eviction policies and support for sharding to enhance concurrency.</em>
+  <em><b>Zigache</b> is an efficient caching library built in <a href="https://ziglang.org/">Zig</a>, offering customizable cache eviction policies for various application needs.</em>
 </p>
 
 ---
 
 > [!NOTE]
-> This project follows Mach Engine's nominated zig version - `2024.5.0-mach` / `0.13.0-dev.351+64ef45eb0`. For more information, see [this](https://machengine.org/docs/nominated-zig/).
+> Zigache is currently in **early development** and **under heavy progress**. This project follows Mach Engine's nominated zig version - `2024.5.0-mach` / `0.13.0-dev.351+64ef45eb0`. For more information, see [this](https://machengine.org/docs/nominated-zig/).
 
 # 📚 Table of Contents
 
@@ -26,19 +26,21 @@
 
 # 🚀 Features
 
-Zigache offers a rich set of features to address a wide range of caching needs:
+Zigache offers a rich set of features to designed to meet various caching needs:
 
-- **Multiple cache eviction policies:**
+- **Multiple Eviction Algorithms:**
   - W-TinyLFU | [TinyLFU: A Highly Efficient Cache Admission Policy](https://arxiv.org/abs/1512.00727)
   - S3-FIFO | [FIFO queues are all you need for cache eviction](https://dl.acm.org/doi/10.1145/3600006.3613147)
   - SIEVE | [SIEVE is Simpler than LRU: an Efficient Turn-Key Eviction Algorithm for Web Caches](https://www.usenix.org/conference/nsdi24/presentation/zhang-yazhuo)
   - LRU | Least Recently Used
   - FIFO | First-In-First-Out
-- **Sharding support** for improved concurrency
-- **Configurable cache size** with pre-allocation options
+- **Configurable Cache Size** with pre-allocation options
 - **Time-To-Live (TTL)** support for cache entries
-- **Thread-safe** for multi-threaded environments
-- Supports **multiple key and value types**
+- **Thread-Safe Operations** for stability in concurrent environments
+- **Sharding Support** for better performance in concurrent environments
+- **Stability and Performance** with benchmarking and heavy testing
+
+> 💡 **We value your input!** If you have suggestions for our project, please open an issue or start a discussion.
 
 # ⚡️ Quickstart
 
@@ -57,8 +59,8 @@ To use Zigache in your project, follow these steps:
         },
         .dependencies = .{
             .zigache = .{
-                .url = "https://github.com/jaxron/zigache/archive/26395537581db98f79c8ed5eb8f3a34f98a2ca3e.tar.gz",
-                .hash = "1220ef544032c604dfd881baa2c001f41d10fcc1f50b3965b44eb892b9b91a94ed8e",
+                .url = "https://github.com/jaxron/zigache/archive/25f8faa1a5f5c9fa935d7fab6e0c235fb859b0f1.tar.gz",
+                .hash = "12201f6ff920dd4b9da19bc99ab0ef60035be8ad5163208365e667db2747464bc593",
             },
         },
     }
@@ -109,7 +111,7 @@ To use Zigache in your project, follow these steps:
     
         // Create a cache with string keys and values
         var cache = try Cache([]const u8, []const u8, .{
-            .total_size = 1,
+            .cache_size = 1,
             .policy = .SIEVE,
         }).init(allocator);
         defer cache.deinit();
@@ -137,15 +139,17 @@ Zigache offers flexible configuration options to adjust the cache to your needs:
 
 ```zig
 var cache = try Cache([]const u8, []const u8, .{
-    .total_size = 10000,   // Total number of items the cache can hold
-    .base_size = 1000,     // Total number of nodes to pre-allocate for better performance
+    .cache_size = 10000,   // Total number of items the cache can hold
+    .pool_size = 1000,     // Total number of nodes to pre-allocate for better performance
     .shard_count = 16,     // Number of shards for concurrent access
-    .thread_safe = true,   // Whether to enable safety features for concurrent access
+    .thread_safety = true, // Whether to enable safety features for concurrent access
     .policy = .SIEVE,      // Eviction policy
 }).init(allocator);
 ```
 
 # 📊 Performance
+
+This benchmark utilizes a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law), which is commonly used to model real-world data access patterns and to simulate a realistic workload.
 
 Benchmark parameters:
 
@@ -158,7 +162,7 @@ For more details on the available flags, run `zig build -h`.
 ## Single-Threaded Performance
 
 ```
-Single Threaded: duration=60.00s keys=1000000 cache-size=10000 zipf=0.70
+Single Threaded: duration=60.00s keys=1000000 cache-size=10000 pool-size=10000 zipf=0.70
 --------+-----------+--------+-------------+--------------+-----------+-----------+-------------
 Name    | Total Ops | ns/op  | ops/s       | Hit Rate (%) | Hits      | Misses    | Memory (MB)
 --------+-----------+--------+-------------+--------------+-----------+-----------+-------------
@@ -173,7 +177,7 @@ S3FIFO  | 725894226 | 82.66  | 12098237.10 | 18.37        | 133332817 | 59256140
 ## Multi-Threaded Performance
 
 ```
-Multi Threaded: duration=60.00s keys=1000000 cache-size=10000 zipf=0.70
+Multi Threaded: duration=60.00s keys=1000000 cache-size=10000 pool-size=10000 zipf=0.70 shards=64 threads=4
 --------+-----------+--------+------------+--------------+-----------+-----------+-------------
 Name    | Total Ops | ns/op  | ops/s      | Hit Rate (%) | Hits      | Misses    | Memory (MB)
 --------+-----------+--------+------------+--------------+-----------+-----------+-------------
