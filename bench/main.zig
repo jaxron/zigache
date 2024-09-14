@@ -8,14 +8,15 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    const cache_size = config.cache_size orelse 10_000;
     var bench = try benchmark.Benchmark(.{
         .execution_mode = getExecutionMode(),
         .stop_condition = getStopCondition(),
-        .cache_size = config.cache_size orelse 10_000,
+        .cache_size = cache_size,
         .pool_size = config.pool_size,
         .shard_count = config.shard_count orelse 1,
-        .num_keys = config.num_keys orelse 1_000_000,
-        .num_threads = config.num_threads orelse 1,
+        .num_keys = config.num_keys orelse cache_size * 32,
+        .num_threads = config.num_threads orelse 4,
         .zipf = config.zipf orelse 0.7,
     }).init(allocator);
     try bench.run();
