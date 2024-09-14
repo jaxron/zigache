@@ -153,3 +153,115 @@ pub fn DoublyLinkedList(comptime Node: type) type {
         }
     };
 }
+
+const testing = std.testing;
+
+const TestNode = struct {
+    prev: ?*TestNode = null,
+    next: ?*TestNode = null,
+    value: u32,
+};
+
+test "DoublyLinkedList - basic operations" {
+    var list = DoublyLinkedList(TestNode){};
+    var node1 = TestNode{ .value = 1 };
+    var node2 = TestNode{ .value = 2 };
+    var node3 = TestNode{ .value = 3 };
+
+    // Test append
+    list.append(&node1);
+    try testing.expectEqual(1, list.len);
+    try testing.expectEqual(&node1, list.first);
+    try testing.expectEqual(&node1, list.last);
+
+    // Test prepend
+    list.prepend(&node2);
+    try testing.expectEqual(2, list.len);
+    try testing.expectEqual(&node2, list.first);
+    try testing.expectEqual(&node1, list.last);
+
+    // Test insertAfter
+    list.insertAfter(&node2, &node3);
+    try testing.expectEqual(3, list.len);
+    try testing.expectEqual(&node3, node2.next);
+    try testing.expectEqual(&node1, node3.next);
+
+    // Test remove
+    list.remove(&node3);
+    try testing.expectEqual(2, list.len);
+    try testing.expectEqual(&node1, node2.next);
+    try testing.expectEqual(&node2, node1.prev);
+
+    // Test pop
+    var popped = list.pop();
+    try testing.expectEqual(&node1, popped);
+    try testing.expectEqual(1, list.len);
+    try testing.expectEqual(&node2, list.first);
+    try testing.expectEqual(&node2, list.last);
+
+    // Test popFirst
+    popped = list.popFirst();
+    try testing.expectEqual(&node2, popped);
+    try testing.expectEqual(0, list.len);
+    try testing.expectEqual(null, list.first);
+    try testing.expectEqual(null, list.last);
+}
+
+test "DoublyLinkedList - edge cases" {
+    var list = DoublyLinkedList(TestNode){};
+    var node1 = TestNode{ .value = 1 };
+    var node2 = TestNode{ .value = 2 };
+
+    // Test empty list
+    try testing.expectEqual(null, list.pop());
+    try testing.expectEqual(null, list.popFirst());
+
+    // Test single element
+    list.append(&node1);
+    try testing.expectEqual(1, list.len);
+    try testing.expectEqual(&node1, list.first);
+    try testing.expectEqual(&node1, list.last);
+
+    // Test removing single element
+    list.remove(&node1);
+    try testing.expectEqual(0, list.len);
+    try testing.expectEqual(null, list.first);
+    try testing.expectEqual(null, list.last);
+
+    // Test insertBefore on empty list
+    list.prepend(&node1);
+    list.insertBefore(&node1, &node2);
+    try testing.expectEqual(2, list.len);
+    try testing.expectEqual(&node2, list.first);
+    try testing.expectEqual(&node1, list.last);
+}
+
+test "DoublyLinkedList - moveToBack" {
+    var list = DoublyLinkedList(TestNode){};
+    var node1 = TestNode{ .value = 1 };
+    var node2 = TestNode{ .value = 2 };
+    var node3 = TestNode{ .value = 3 };
+
+    list.append(&node1);
+    list.append(&node2);
+    list.append(&node3);
+
+    list.moveToBack(&node1);
+    try testing.expectEqual(&node2, list.first);
+    try testing.expectEqual(&node1, list.last);
+    try testing.expectEqual(3, list.len);
+}
+
+test "DoublyLinkedList - clear" {
+    var list = DoublyLinkedList(TestNode){};
+    var node1 = TestNode{ .value = 1 };
+    var node2 = TestNode{ .value = 2 };
+
+    list.append(&node1);
+    list.append(&node2);
+
+    list.clear();
+    try testing.expectEqual(0, list.len);
+    try testing.expectEqual(null, list.first);
+    try testing.expectEqual(null, list.last);
+}
