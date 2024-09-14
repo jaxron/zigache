@@ -2,8 +2,6 @@ const std = @import("std");
 const utils = @import("../utils/utils.zig");
 const assert = std.debug.assert;
 
-const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList;
-const Map = @import("../structures/map.zig").Map;
 const Allocator = std.mem.Allocator;
 
 /// SIEVE is an simple caching policy designed to balance between recency and
@@ -15,20 +13,24 @@ const Allocator = std.mem.Allocator;
 /// https://cachemon.github.io/SIEVE-website/
 pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
     return struct {
-        const Node = @import("../structures/node.zig").Node(K, V, struct {
+        const Data = struct {
             visited: bool,
-        });
+        };
+
+        const Node = @import("../structures/node.zig").Node(K, V, Data);
+        const Map = @import("../structures/map.zig").Map(K, V, Data);
+        const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList(K, V, Data);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
-        map: Map(Node),
-        list: DoublyLinkedList(Node) = .{},
+        map: Map,
+        list: DoublyLinkedList = .{},
         mutex: Mutex = if (thread_safety) .{} else {},
         hand: ?*Node = null,
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
-            return .{ .map = try Map(Node).init(allocator, cache_size, pool_size) };
+            return .{ .map = try Map.init(allocator, cache_size, pool_size) };
         }
 
         pub fn deinit(self: *Self) void {

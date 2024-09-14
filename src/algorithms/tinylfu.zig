@@ -3,8 +3,6 @@ const utils = @import("../utils/utils.zig");
 const assert = std.debug.assert;
 
 const CountMinSketch = @import("../structures/cms.zig").CountMinSketch;
-const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList;
-const Map = @import("../structures/map.zig").Map;
 const Allocator = std.mem.Allocator;
 
 /// W-TinyLFU is a hybrid cache eviction policy that combines a small window
@@ -17,19 +15,24 @@ const Allocator = std.mem.Allocator;
 pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
     return struct {
         const CacheRegion = enum { Window, Probationary, Protected };
-        const Node = @import("../structures/node.zig").Node(K, V, struct {
+
+        const Data = struct {
             // Indicates which part of the cache this node belongs to:
             // Window: Recent entries, not yet in main cache
             // Probationary: Less frequently accessed items in main cache
             // Protected: Frequently accessed items in main cache
             region: CacheRegion,
-        });
+        };
+
+        const Node = @import("../structures/node.zig").Node(K, V, Data);
+        const Map = @import("../structures/map.zig").Map(K, V, Data);
+        const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList(K, V, Data);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
-        map: Map(Node),
-        window: DoublyLinkedList(Node) = .{},
-        probationary: DoublyLinkedList(Node) = .{},
-        protected: DoublyLinkedList(Node) = .{},
+        map: Map,
+        window: DoublyLinkedList = .{},
+        probationary: DoublyLinkedList = .{},
+        protected: DoublyLinkedList = .{},
         mutex: Mutex = if (thread_safety) .{} else {},
 
         sketch: CountMinSketch,
@@ -47,7 +50,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool)
             const probationary_size = @max(1, main_size - protected_size); // 20% of main cache
 
             return .{
-                .map = try Map(Node).init(allocator, cache_size, pool_size),
+                .map = try Map.init(allocator, cache_size, pool_size),
                 .sketch = try CountMinSketch.init(allocator, cache_size, 4),
                 .window_size = window_size,
                 .probationary_size = probationary_size,

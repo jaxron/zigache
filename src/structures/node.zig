@@ -9,9 +9,9 @@ pub fn Node(comptime K: type, comptime V: type, comptime Data: type) type {
         value: V,
 
         /// Pointer to the next node in the linked list
-        next: ?*Self,
+        next: ?*Self = null,
         // Pointer to the previous node in the linked list
-        prev: ?*Self,
+        prev: ?*Self = null,
 
         /// The expiry field stores the timestamp when this cache entry should expire, in milliseconds.
         /// It is of type `?i64`, where:
@@ -21,7 +21,7 @@ pub fn Node(comptime K: type, comptime V: type, comptime Data: type) type {
         ///
         /// This field is used in TTL (Time-To-Live) operations to determine if an entry
         /// should be considered valid or if it should be removed from the cache.
-        expiry: ?i64,
+        expiry: ?i64 = null,
 
         /// Additional data specific to the caching algorithm (e.g., frequency counters, flags)
         data: Data,

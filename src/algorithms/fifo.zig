@@ -2,8 +2,6 @@ const std = @import("std");
 const utils = @import("../utils/utils.zig");
 const assert = std.debug.assert;
 
-const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList;
-const Map = @import("../structures/map.zig").Map;
 const Allocator = std.mem.Allocator;
 
 /// FIFO is a simple cache eviction policy. In this approach, new items are added
@@ -12,16 +10,18 @@ const Allocator = std.mem.Allocator;
 pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
     return struct {
         const Node = @import("../structures/node.zig").Node(K, V, void);
+        const Map = @import("../structures/map.zig").Map(K, V, void);
+        const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList(K, V, void);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
-        map: Map(Node),
-        list: DoublyLinkedList(Node) = .{},
+        map: Map,
+        list: DoublyLinkedList = .{},
         mutex: Mutex = if (thread_safety) .{} else {},
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
-            return .{ .map = try Map(Node).init(allocator, cache_size, pool_size) };
+            return .{ .map = try Map.init(allocator, cache_size, pool_size) };
         }
 
         pub fn deinit(self: *Self) void {

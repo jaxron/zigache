@@ -2,8 +2,6 @@ const std = @import("std");
 const utils = @import("../utils/utils.zig");
 const assert = std.debug.assert;
 
-const Map = @import("../structures/map.zig").Map;
-const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList;
 const Allocator = std.mem.Allocator;
 
 /// S3FIFO is an advanced FIFO-based caching policy that uses three segments:
@@ -18,18 +16,23 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) 
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
-        const Node = @import("../structures/node.zig").Node(K, V, struct {
+
+        const Data = struct {
             // Indicates which queue (Small, Main, or Ghost) the node is currently in
             queue: QueueType,
             // Tracks the access frequency of the node, used for eviction decisions
             freq: u2,
-        });
+        };
+
+        const Node = @import("../structures/node.zig").Node(K, V, Data);
+        const Map = @import("../structures/map.zig").Map(K, V, Data);
+        const DoublyLinkedList = @import("../structures/dbl.zig").DoublyLinkedList(K, V, Data);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
-        map: Map(Node),
-        small: DoublyLinkedList(Node) = .{},
-        main: DoublyLinkedList(Node) = .{},
-        ghost: DoublyLinkedList(Node) = .{},
+        map: Map,
+        small: DoublyLinkedList = .{},
+        main: DoublyLinkedList = .{},
+        ghost: DoublyLinkedList = .{},
         mutex: Mutex = if (thread_safety) .{} else {},
 
         max_size: u32,
@@ -45,7 +48,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) 
             const other_size = @max(1, (cache_size - small_size) / 2);
 
             return .{
-                .map = try Map(Node).init(allocator, cache_size, pool_size),
+                .map = try Map.init(allocator, cache_size, pool_size),
                 .max_size = small_size + other_size * 2,
                 .main_size = other_size,
                 .small_size = small_size,

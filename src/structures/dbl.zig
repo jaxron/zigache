@@ -6,8 +6,10 @@ const assert = std.debug.assert;
 /// The implementation uses asserts to check for impossible cases, which
 /// helps catch bugs and invalid states during development and testing.
 /// All operations have O(1) time complexity, except for `clear()` which is O(n).
-pub fn DoublyLinkedList(comptime Node: type) type {
+pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type) type {
     return struct {
+        const Node = @import("node.zig").Node(K, V, Data);
+
         first: ?*Node = null,
         last: ?*Node = null,
         len: usize = 0,
@@ -156,17 +158,22 @@ pub fn DoublyLinkedList(comptime Node: type) type {
 
 const testing = std.testing;
 
-const TestNode = struct {
-    prev: ?*TestNode = null,
-    next: ?*TestNode = null,
-    value: u32,
-};
+const TestList = DoublyLinkedList(u32, u32, void);
+const TestNode = @import("node.zig").Node(u32, u32, void);
+
+fn initTestNode(value: u32) TestNode {
+    return .{
+        .key = value,
+        .value = value,
+        .data = {},
+    };
+}
 
 test "DoublyLinkedList - basic operations" {
-    var list = DoublyLinkedList(TestNode){};
-    var node1 = TestNode{ .value = 1 };
-    var node2 = TestNode{ .value = 2 };
-    var node3 = TestNode{ .value = 3 };
+    var list = TestList{};
+    var node1 = initTestNode(1);
+    var node2 = initTestNode(2);
+    var node3 = initTestNode(3);
 
     // Test append
     list.append(&node1);
@@ -208,9 +215,9 @@ test "DoublyLinkedList - basic operations" {
 }
 
 test "DoublyLinkedList - edge cases" {
-    var list = DoublyLinkedList(TestNode){};
-    var node1 = TestNode{ .value = 1 };
-    var node2 = TestNode{ .value = 2 };
+    var list = TestList{};
+    var node1 = initTestNode(1);
+    var node2 = initTestNode(2);
 
     // Test empty list
     try testing.expectEqual(null, list.pop());
@@ -237,10 +244,10 @@ test "DoublyLinkedList - edge cases" {
 }
 
 test "DoublyLinkedList - moveToBack" {
-    var list = DoublyLinkedList(TestNode){};
-    var node1 = TestNode{ .value = 1 };
-    var node2 = TestNode{ .value = 2 };
-    var node3 = TestNode{ .value = 3 };
+    var list = TestList{};
+    var node1 = initTestNode(1);
+    var node2 = initTestNode(2);
+    var node3 = initTestNode(3);
 
     list.append(&node1);
     list.append(&node2);
@@ -253,9 +260,9 @@ test "DoublyLinkedList - moveToBack" {
 }
 
 test "DoublyLinkedList - clear" {
-    var list = DoublyLinkedList(TestNode){};
-    var node1 = TestNode{ .value = 1 };
-    var node2 = TestNode{ .value = 2 };
+    var list = TestList{};
+    var node1 = initTestNode(1);
+    var node2 = initTestNode(2);
 
     list.append(&node1);
     list.append(&node2);

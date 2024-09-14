@@ -7,9 +7,10 @@ const Allocator = std.mem.Allocator;
 
 /// Map is a generic key-value store that supports different types of keys and nodes.
 /// It uses a hash map for fast lookups and a node pool for efficient memory management.
-pub fn Map(comptime Node: type) type {
-    const K = @TypeOf(@field(@as(Node, undefined), "key"));
+pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
     return struct {
+        const Node = @import("node.zig").Node(K, V, Data);
+
         /// Uses StringArrayHashMapUnmanaged for string keys,
         /// and AutoArrayHashMapUnmanaged for other types.
         const HashMapType = if (K == []const u8)
@@ -146,14 +147,8 @@ pub fn Map(comptime Node: type) type {
 
 const testing = std.testing;
 
-const TestMap = Map(TestNode);
-const TestNode = struct {
-    key: []const u8,
-    value: u32,
-    next: ?*TestNode = null,
-    prev: ?*TestNode = null,
-    expiry: ?i64,
-};
+const TestMap = Map([]const u8, u32, void);
+const TestNode = @import("node.zig").Node([]const u8, u32, void);
 
 test "Map - init and deinit" {
     var map = try TestMap.init(testing.allocator, 100, 10);
@@ -237,6 +232,7 @@ test "Map - checkTTL" {
         .key = key,
         .value = 1,
         .expiry = std.time.milliTimestamp() - 1000, // Set expiry to 1 second ago
+        .data = {},
     };
 
     try testing.expect(map.checkTTL(node, hash_code));
