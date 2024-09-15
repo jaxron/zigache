@@ -180,7 +180,7 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             // We allocate an extra node to handle the case where the pool is
             // full since we acquire a node before the eviction process. Check
             // the `set` method in the Map implementation for more information.
-            const shard_pool_size = (config.pool_size orelse config.cache_size + 1) / shard_count;
+            const shard_pool_size = (config.pool_size orelse config.cache_size) / shard_count + 1;
 
             const shards = try allocator.alloc(CacheImpl, shard_count);
             errdefer allocator.free(shards);
