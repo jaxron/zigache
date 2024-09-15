@@ -71,8 +71,8 @@ To use Zigache in your project, follow these steps:
         },
         .dependencies = .{
             .zigache = .{
-                .url = "https://github.com/jaxron/zigache/archive/98df0e9c7b6d19e7b3c4463b66c16ac2c1894961.tar.gz",
-                .hash = "12204a5842fe092ebd164312f8734ce0170fbc285c9a40d99de05f3dfa77755457a0",
+                .url = "https://github.com/jaxron/zigache/archive/6f4995142fed9c83598fc2d9cbc38fbe75899095.tar.gz",
+                .hash = "12208aad920f6b0227835013637cff0ba8fdf8a9abfe17ac3b9e3dd350bd5d5c1f36",
             },
         },
     }
