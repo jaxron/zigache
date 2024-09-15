@@ -13,7 +13,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://s3fifo.com/
-pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
+pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
@@ -83,7 +83,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) 
             defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
-                if (self.map.checkTTL(node, hash_code)) {
+                if (ttl_enabled and self.map.checkTTL(node, hash_code)) {
                     self.removeFromList(node);
                     self.map.pool.release(node);
                     return null;
@@ -113,7 +113,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) 
                 .value = value,
                 .next = node.next,
                 .prev = node.prev,
-                .expiry = utils.getExpiry(ttl),
+                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
                 .data = .{
                     .queue = if (found_existing) node.data.queue else .Small,
                     .freq = if (found_existing) node.data.freq else 0,
@@ -212,7 +212,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool) 
 
 const testing = std.testing;
 
-const TestCache = utils.TestCache(S3FIFO(u32, []const u8, false));
+const TestCache = utils.TestCache(S3FIFO(u32, []const u8, false, true));
 
 test "S3FIFO - basic insert and get" {
     var cache = try TestCache.init(testing.allocator, 10);

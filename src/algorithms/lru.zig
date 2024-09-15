@@ -9,7 +9,7 @@ const Allocator = std.mem.Allocator;
 /// what items are used and when. When the cache is full, the item that hasn't
 /// been used for the longest time is evicted. This policy is based on the idea
 /// that items that have been used recently are likely to be used again soon.
-pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
+pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
     return struct {
         const Node = zigache.Node(K, V, void);
         const Map = zigache.Map(K, V, void);
@@ -50,7 +50,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool) typ
             defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
-                if (self.map.checkTTL(node, hash_code)) {
+                if (ttl_enabled and self.map.checkTTL(node, hash_code)) {
                     self.list.remove(node);
                     self.map.pool.release(node);
                     return null;
@@ -73,7 +73,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool) typ
                 .value = value,
                 .next = node.next,
                 .prev = node.prev,
-                .expiry = utils.getExpiry(ttl),
+                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
                 .data = {},
             };
 
@@ -111,7 +111,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool) typ
 
 const testing = std.testing;
 
-const TestCache = utils.TestCache(LRU(u32, []const u8, false));
+const TestCache = utils.TestCache(LRU(u32, []const u8, false, true));
 
 test "LRU - basic insert and get" {
     var cache = try TestCache.init(testing.allocator, 2);

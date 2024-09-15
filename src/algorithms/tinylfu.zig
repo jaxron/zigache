@@ -13,7 +13,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://arxiv.org/pdf/1512.00727
-pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
+pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
     return struct {
         const CacheRegion = enum { Window, Probationary, Protected };
 
@@ -86,7 +86,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool)
             defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
-                if (self.map.checkTTL(node, hash_code)) {
+                if (ttl_enabled and self.map.checkTTL(node, hash_code)) {
                     self.removeFromList(node);
                     self.map.pool.release(node);
                     return null;
@@ -110,7 +110,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool)
                 .value = value,
                 .next = node.next,
                 .prev = node.prev,
-                .expiry = utils.getExpiry(ttl),
+                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
                 .data = .{
                     // New items always start in the window region
                     .region = if (found_existing) node.data.region else .Window,
@@ -202,7 +202,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool)
 
 const testing = std.testing;
 
-const TestCache = utils.TestCache(TinyLFU(u32, []const u8, false));
+const TestCache = utils.TestCache(TinyLFU(u32, []const u8, false, true));
 
 test "TinyLFU - basic insert and get" {
     var cache = try TestCache.init(testing.allocator, 10);

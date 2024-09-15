@@ -12,7 +12,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://cachemon.github.io/SIEVE-website/
-pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool) type {
+pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
     return struct {
         const Data = struct {
             visited: bool,
@@ -58,7 +58,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool) t
             defer if (thread_safety) self.mutex.unlock();
 
             if (self.map.get(key, hash_code)) |node| {
-                if (self.map.checkTTL(node, hash_code)) {
+                if (ttl_enabled and self.map.checkTTL(node, hash_code)) {
                     self.list.remove(node);
                     self.map.pool.release(node);
                     return null;
@@ -81,7 +81,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool) t
                 .value = value,
                 .next = node.next,
                 .prev = node.prev,
-                .expiry = utils.getExpiry(ttl),
+                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
                 .data = .{ .visited = false },
             };
 
@@ -134,7 +134,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool) t
 
 const testing = std.testing;
 
-const TestCache = utils.TestCache(SIEVE(u32, []const u8, false));
+const TestCache = utils.TestCache(SIEVE(u32, []const u8, false, true));
 
 test "SIEVE - basic insert and get" {
     var cache = try TestCache.init(testing.allocator, 2);

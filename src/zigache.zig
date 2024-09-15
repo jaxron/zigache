@@ -61,6 +61,20 @@ pub const Config = struct {
     /// managing concurrency yourself.
     thread_safety: bool = true,
 
+    /// Determines whether the Time-To-Live (TTL) functionality is enabled.
+    ///
+    /// When enabled, TTL is checked only when an item is accessed via the `get`
+    /// operation and removed if it has expired. This is crucial for applications
+    /// that require the  invalidation of stale entries.
+    ///
+    /// Disabling this option when TTL is not used will improve performance by
+    /// removing unnecessary expiration checks during cache operations.
+    ///
+    /// Default is false for performance, but can be set to true you use TTL.
+    /// A compile-time error will be raised if TTL is disabled but TTL operations
+    /// are attempted in the cache.
+    ttl_enabled: bool = false,
+
     /// The eviction policy to use for managing cache entries.
     ///
     /// This field determines the algorithm used to decide which items to remove
@@ -94,11 +108,11 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             // when accepted proposals like pinned structs are implemented in Zig as well
             // as certain safety features.
 
-            const _FIFO = FIFO(K, V, config.thread_safety);
-            const _LRU = LRU(K, V, config.thread_safety);
-            const _TinyLFU = TinyLFU(K, V, config.thread_safety);
-            const _SIEVE = SIEVE(K, V, config.thread_safety);
-            const _S3FIFO = S3FIFO(K, V, config.thread_safety);
+            const _FIFO = FIFO(K, V, config.thread_safety, config.ttl_enabled);
+            const _LRU = LRU(K, V, config.thread_safety, config.ttl_enabled);
+            const _TinyLFU = TinyLFU(K, V, config.thread_safety, config.ttl_enabled);
+            const _SIEVE = SIEVE(K, V, config.thread_safety, config.ttl_enabled);
+            const _S3FIFO = S3FIFO(K, V, config.thread_safety, config.ttl_enabled);
 
             FIFO: _FIFO,
             LRU: _LRU,
@@ -218,6 +232,8 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
         /// for this entry returns a null result and is removed from the cache.
         /// Time is measured in milliseconds.
         pub fn setWithTTL(self: *Self, key: K, value: V, ttl: u64) !void {
+            comptime if (!config.ttl_enabled) @compileError("TTL is not enabled for this cache configuration");
+
             const hash_code, const shard = self.getShard(key);
             try shard.set(key, value, ttl, hash_code);
         }
