@@ -72,18 +72,18 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         }
 
         /// Returns true if a key exists in the map.
-        pub fn contains(self: *Self, key: K, hash_code: u64) bool {
+        pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             return self.map.containsAdapted(key, HashContext.init(hash_code));
         }
 
         /// Returns the number of items in this map.
-        pub fn count(self: *Self) usize {
+        pub inline fn count(self: *Self) usize {
             return self.map.count();
         }
 
         /// Gets a node based on the given key.
         /// Returns a pointer to the Node if found, or null if not found.
-        pub fn get(self: *Self, key: K, hash_code: u64) ?*Node {
+        pub inline fn get(self: *Self, key: K, hash_code: u64) ?*Node {
             return self.map.getAdapted(key, HashContext.init(hash_code));
         }
 
