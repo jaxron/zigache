@@ -33,7 +33,7 @@ pub fn init(n: u64, s: f64) !Self {
 }
 
 /// Generate the next Zipfian-distributed random number
-pub fn next(self: *Self, rng: std.rand.Random) u64 {
+pub fn next(self: *Self, rng: std.Random) u64 {
     while (true) {
         // Generate a uniform random number and map it to the Zipfian distribution
         const u = self.h_n + rng.float(f64) * (self.h_x1 - self.h_n);

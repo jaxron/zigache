@@ -88,7 +88,7 @@ pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResu
             const formatted = try result.format(allocator);
             defer allocator.free(formatted);
 
-            var iter = std.mem.split(u8, formatted, "|");
+            var iter = std.mem.splitSequence(u8, formatted, "|");
             var j: usize = 0;
             while (iter.next()) |field| : (j += 1) {
                 if (j == i and field.len > col_widths[i]) {
@@ -109,7 +109,7 @@ pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResu
         defer allocator.free(formatted);
 
         var fields: [headers.len][]const u8 = undefined;
-        var iter = std.mem.split(u8, formatted, "|");
+        var iter = std.mem.splitSequence(u8, formatted, "|");
         var i: usize = 0;
         while (iter.next()) |field| : (i += 1) {
             if (i >= headers.len) break; // Ensure we don't exceed the number of headers

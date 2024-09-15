@@ -24,7 +24,7 @@
 ---
 
 > [!IMPORTANT]
-> Zigache is currently in **early development**. This project follows Mach Engine's nominated zig version - `2024.5.0-mach` / `0.13.0-dev.351+64ef45eb0`. For more information, see [this](https://machengine.org/docs/nominated-zig/).
+> Zigache is currently in **early development** and follows Zig's latest nightly build. Last updated for `0.14.0-dev.1573+4d81e8ee9`.
 
 # 📚 Table of Contents
 

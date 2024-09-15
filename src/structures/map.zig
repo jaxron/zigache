@@ -35,10 +35,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
 
             /// Check equality of two keys.
             pub fn eql(_: HashContext, a: K, b: K, _: usize) bool {
-                if (K == []const u8) {
-                    return std.mem.eql(u8, a, b);
-                }
-                return std.meta.eql(a, b);
+                return if (K == []const u8) std.mem.eql(u8, a, b) else std.meta.eql(a, b);
             }
         };
 
