@@ -96,9 +96,13 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
             // as compared to a previous implementation where we used separate `getAdapted`
             // and `getOrPutAdapted` calls.
             //
-            // However, eviction is now performed after acquiring a node, which requires an
-            // extra allocation. But the overall gains from reducing scans outweigh this
-            // small downside.
+            // However, we only perform the eviction after acquiring a node because we need to
+            // know whether the node already exists so we don't evict for no reason, which
+            // requires an extra allocation for the cache.
+            //
+            // On the other hand, if we did the eviction before acquiring a node, there's a chance
+            // that the node already exists and we evict a different node, which would be unnecessary.
+            // This could also affect the hit rate of the cache, which is not desirable.
             const gop = try self.map.getOrPutAdapted(self.allocator, key, HashContext.init(hash_code));
             if (!gop.found_existing) {
                 const node = try self.pool.acquire();
