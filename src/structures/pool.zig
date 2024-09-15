@@ -1,4 +1,5 @@
 const std = @import("std");
+const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
@@ -30,10 +31,8 @@ pub fn Pool(comptime Node: type) type {
 
             for (0..initial_size) |i| {
                 const node = try allocator.create(Node);
-                node.next = null;
-                node.prev = null;
+                node.* = .empty;
                 nodes[i] = node;
-
                 available += 1;
             }
 
@@ -60,8 +59,7 @@ pub fn Pool(comptime Node: type) type {
             if (available == 0) {
                 // Pool is empty, create a new node
                 const node = try self.allocator.create(Node);
-                node.next = null;
-                node.prev = null;
+                node.* = .empty;
                 return node;
             }
 
@@ -90,14 +88,10 @@ pub fn Pool(comptime Node: type) type {
 
 const testing = std.testing;
 
-const TestNode = struct {
-    value: u32,
-    next: ?*TestNode = null,
-    prev: ?*TestNode = null,
-};
+const TestNode = zigache.Node(u32, u32, void);
 
 test "Pool - init and deinit" {
-    var pool = try Pool(TestNode).init(testing.allocator, 10);
+    var pool: Pool(TestNode) = try .init(testing.allocator, 10);
     defer pool.deinit();
 
     try testing.expectEqual(10, pool.available);
@@ -105,7 +99,7 @@ test "Pool - init and deinit" {
 }
 
 test "Pool - acquire and release" {
-    var pool = try Pool(TestNode).init(testing.allocator, 2);
+    var pool: Pool(TestNode) = try .init(testing.allocator, 2);
     defer pool.deinit();
 
     // Acquire nodes until the pool is empty

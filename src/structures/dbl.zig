@@ -10,9 +10,15 @@ pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type)
     return struct {
         const Node = zigache.Node(K, V, Data);
 
-        first: ?*Node = null,
-        last: ?*Node = null,
-        len: usize = 0,
+        pub const empty: Self = .{
+            .first = null,
+            .last = null,
+            .len = 0,
+        };
+
+        first: ?*Node,
+        last: ?*Node,
+        len: usize,
 
         const Self = @This();
 
@@ -165,12 +171,15 @@ fn initTestNode(value: u32) TestNode {
     return .{
         .key = value,
         .value = value,
+        .prev = null,
+        .next = null,
+        .expiry = null,
         .data = {},
     };
 }
 
 test "DoublyLinkedList - basic operations" {
-    var list = TestList{};
+    var list: TestList = .empty;
     var node1 = initTestNode(1);
     var node2 = initTestNode(2);
     var node3 = initTestNode(3);
@@ -215,7 +224,7 @@ test "DoublyLinkedList - basic operations" {
 }
 
 test "DoublyLinkedList - edge cases" {
-    var list = TestList{};
+    var list: TestList = .empty;
     var node1 = initTestNode(1);
     var node2 = initTestNode(2);
 
@@ -244,7 +253,7 @@ test "DoublyLinkedList - edge cases" {
 }
 
 test "DoublyLinkedList - moveToBack" {
-    var list = TestList{};
+    var list: TestList = .empty;
     var node1 = initTestNode(1);
     var node2 = initTestNode(2);
     var node3 = initTestNode(3);
@@ -260,7 +269,7 @@ test "DoublyLinkedList - moveToBack" {
 }
 
 test "DoublyLinkedList - clear" {
-    var list = TestList{};
+    var list: TestList = .empty;
     var node1 = initTestNode(1);
     var node2 = initTestNode(2);
 

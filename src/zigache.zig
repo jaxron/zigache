@@ -262,14 +262,14 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
 
 const testing = std.testing;
 
-const TestConfig = Config{
+const TestConfig: Config = .{
     .cache_size = 100,
     .shard_count = 1,
     .policy = .FIFO,
 };
 
 test "Zigache - string keys" {
-    var cache = try Cache([]const u8, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set("key1", "value1");
@@ -281,7 +281,7 @@ test "Zigache - string keys" {
 }
 
 test "Zigache - overwrite existing string key" {
-    var cache = try Cache([]const u8, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set("key1", "value1");
@@ -291,7 +291,7 @@ test "Zigache - overwrite existing string key" {
 }
 
 test "Zigache - remove string key" {
-    var cache = try Cache([]const u8, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set("key1", "value1");
@@ -301,7 +301,7 @@ test "Zigache - remove string key" {
 }
 
 test "Zigache - integer keys" {
-    var cache = try Cache(i32, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache(i32, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "one");
@@ -320,7 +320,7 @@ test "Zigache - integer keys" {
 test "Zigache - struct keys" {
     const Point = struct { x: i32, y: i32 };
 
-    var cache = try Cache(Point, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache(Point, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(.{ .x = 1, .y = 2 }, "point one-two");
@@ -337,7 +337,7 @@ test "Zigache - struct keys" {
 }
 
 test "Zigache - array keys" {
-    var cache = try Cache([3]u8, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache([3]u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set([3]u8{ 1, 2, 3 }, "one-two-three");
@@ -358,7 +358,7 @@ test "Zigache - pointer keys" {
     var value2: i32 = 100;
     var value3: i32 = 200;
 
-    var cache = try Cache(*i32, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache(*i32, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(&value1, "pointer to 0");
@@ -381,7 +381,7 @@ test "Zigache - enum keys" {
         Blue,
     };
 
-    var cache = try Cache(Color, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache(Color, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(.Red, "crimson");
@@ -397,7 +397,7 @@ test "Zigache - enum keys" {
 }
 
 test "Zigache - optional keys" {
-    var cache = try Cache(?i32, []const u8, TestConfig).init(testing.allocator);
+    var cache: Cache(?i32, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(null, "no value");

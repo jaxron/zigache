@@ -26,14 +26,14 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
         };
 
         pub fn bench(allocator: std.mem.Allocator, keys: []const utils.Sample) !BenchmarkResult {
-            var gpa = std.heap.GeneralPurposeAllocator(.{ .enable_memory_limit = true }){};
+            var gpa: std.heap.GeneralPurposeAllocator(.{ .enable_memory_limit = true }) = .init;
             defer _ = gpa.deinit();
             const local_allocator = gpa.allocator();
 
             const stdout = std.io.getStdOut().writer();
 
             // Initialize the cache
-            var cache = try Cache.init(local_allocator);
+            var cache: Cache = try .init(local_allocator);
             defer cache.deinit();
 
             // Initialize thread contexts
@@ -78,7 +78,7 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
         fn runThreadBenchmark() fn (*ThreadContext) void {
             return struct {
                 fn run(ctx: *ThreadContext) void {
-                    var timer = std.time.Timer.start() catch {
+                    var timer: std.time.Timer = .start() catch {
                         std.debug.print("Failed to start timer\n", .{});
                         return;
                     };
@@ -107,10 +107,7 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
             }.run;
         }
 
-        fn monitorProgress(
-            stdout: std.fs.File.Writer,
-            contexts: *[]ThreadContext,
-        ) !void {
+        fn monitorProgress(stdout: std.fs.File.Writer, contexts: *[]ThreadContext) !void {
             while (true) {
                 var total_ops: u64 = 0;
                 var total_run_time: u64 = 0;
@@ -129,12 +126,7 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
             }
         }
 
-        fn printProgress(
-            stdout: std.fs.File.Writer,
-            contexts: *[]ThreadContext,
-            total_ops: u64,
-            total_run_time: u64,
-        ) !void {
+        fn printProgress(stdout: std.fs.File.Writer, contexts: *[]ThreadContext, total_ops: u64, total_run_time: u64) !void {
             var total_hits: u64 = 0;
             var total_misses: u64 = 0;
             for (contexts.*) |ctx| {
@@ -156,11 +148,7 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
             });
         }
 
-        fn aggregateResults(
-            stdout: std.fs.File.Writer,
-            contexts: []const ThreadContext,
-            bytes: *usize,
-        ) !BenchmarkResult {
+        fn aggregateResults(stdout: std.fs.File.Writer, contexts: []const ThreadContext, bytes: *usize) !BenchmarkResult {
             var total_run_time: u64 = 0;
             var total_hits: u64 = 0;
             var total_misses: u64 = 0;

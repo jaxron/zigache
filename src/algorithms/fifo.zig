@@ -10,19 +10,18 @@ const Allocator = std.mem.Allocator;
 /// which is at the front of the queue, is evicted to make room for the new item.
 pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
     return struct {
-        const Node = zigache.Node(K, V, void);
         const Map = zigache.Map(K, V, void);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,
-        list: DoublyLinkedList = .{},
+        list: DoublyLinkedList = .empty,
         mutex: Mutex = if (thread_safety) .{} else {},
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
-            return .{ .map = try Map.init(allocator, cache_size, pool_size) };
+            return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -30,14 +29,14 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, co
             self.map.deinit();
         }
 
-        pub fn contains(self: *Self, key: K, hash_code: u64) bool {
+        pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
-        pub fn count(self: *Self) usize {
+        pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
@@ -64,14 +63,7 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, co
             defer if (thread_safety) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
-            node.* = .{
-                .key = key,
-                .value = value,
-                .next = node.next,
-                .prev = node.prev,
-                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
-                .data = {},
-            };
+            node.update(key, value, ttl, {});
 
             if (!found_existing) {
                 if (self.map.count() > self.map.capacity) self.evict();
@@ -107,7 +99,7 @@ const testing = std.testing;
 const TestCache = utils.TestCache(FIFO(u32, []const u8, false, true));
 
 test "FIFO - basic insert and get" {
-    var cache = try TestCache.init(testing.allocator, 2);
+    var cache: TestCache = try .init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -118,7 +110,7 @@ test "FIFO - basic insert and get" {
 }
 
 test "FIFO - overwrite existing key" {
-    var cache = try TestCache.init(testing.allocator, 2);
+    var cache: TestCache = try .init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -129,7 +121,7 @@ test "FIFO - overwrite existing key" {
 }
 
 test "FIFO - remove key" {
-    var cache = try TestCache.init(testing.allocator, 1);
+    var cache: TestCache = try .init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -143,7 +135,7 @@ test "FIFO - remove key" {
 }
 
 test "FIFO - eviction" {
-    var cache = try TestCache.init(testing.allocator, 3);
+    var cache: TestCache = try .init(testing.allocator, 3);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -163,7 +155,7 @@ test "FIFO - eviction" {
 }
 
 test "FIFO - TTL functionality" {
-    var cache = try TestCache.init(testing.allocator, 1);
+    var cache: TestCache = try .init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

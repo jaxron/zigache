@@ -24,14 +24,14 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool, c
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,
-        list: DoublyLinkedList = .{},
+        list: DoublyLinkedList = .empty,
         mutex: Mutex = if (thread_safety) .{} else {},
         hand: ?*Node = null,
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
-            return .{ .map = try Map.init(allocator, cache_size, pool_size) };
+            return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -39,14 +39,14 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool, c
             self.map.deinit();
         }
 
-        pub fn contains(self: *Self, key: K, hash_code: u64) bool {
+        pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
-        pub fn count(self: *Self) usize {
+        pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
@@ -76,14 +76,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool, c
             defer if (thread_safety) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
-            node.* = .{
-                .key = key,
-                .value = value,
-                .next = node.next,
-                .prev = node.prev,
-                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
-                .data = .{ .visited = false },
-            };
+            node.update(key, value, ttl, .{ .visited = false });
 
             if (!found_existing) {
                 if (self.map.count() > self.map.capacity) self.evict();
@@ -137,7 +130,7 @@ const testing = std.testing;
 const TestCache = utils.TestCache(SIEVE(u32, []const u8, false, true));
 
 test "SIEVE - basic insert and get" {
-    var cache = try TestCache.init(testing.allocator, 2);
+    var cache: TestCache = try .init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -148,7 +141,7 @@ test "SIEVE - basic insert and get" {
 }
 
 test "SIEVE - overwrite existing key" {
-    var cache = try TestCache.init(testing.allocator, 2);
+    var cache: TestCache = try .init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -159,7 +152,7 @@ test "SIEVE - overwrite existing key" {
 }
 
 test "SIEVE - remove key" {
-    var cache = try TestCache.init(testing.allocator, 1);
+    var cache: TestCache = try .init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -173,7 +166,7 @@ test "SIEVE - remove key" {
 }
 
 test "SIEVE - eviction" {
-    var cache = try TestCache.init(testing.allocator, 3);
+    var cache: TestCache = try .init(testing.allocator, 3);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -195,7 +188,7 @@ test "SIEVE - eviction" {
 }
 
 test "SIEVE - TTL functionality" {
-    var cache = try TestCache.init(testing.allocator, 1);
+    var cache: TestCache = try .init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

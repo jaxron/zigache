@@ -4,12 +4,12 @@ const utils = @import("utils.zig");
 const benchmark = @import("benchmark.zig");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     const cache_size = config.cache_size orelse 10_000;
-    var bench = try benchmark.Benchmark(.{
+    var bench: benchmark.Benchmark(.{
         .execution_mode = getExecutionMode(),
         .stop_condition = getStopCondition(),
         .cache_size = cache_size,
@@ -18,7 +18,7 @@ pub fn main() !void {
         .num_keys = config.num_keys orelse cache_size * 32,
         .num_threads = config.num_threads orelse 4,
         .zipf = config.zipf orelse 0.7,
-    }).init(allocator);
+    }) = try .init(allocator);
     try bench.run();
 }
 

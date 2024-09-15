@@ -40,7 +40,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         };
 
         allocator: std.mem.Allocator,
-        map: HashMapType = .{},
+        map: HashMapType = .empty,
         pool: Pool,
         capacity: usize,
 
@@ -50,7 +50,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             var self = Self{
                 .allocator = allocator,
-                .pool = try Pool.init(allocator, pool_size),
+                .pool = try .init(allocator, pool_size),
                 .capacity = cache_size,
             };
             try self.map.ensureTotalCapacity(allocator, pool_size);
@@ -150,10 +150,9 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
 const testing = std.testing;
 
 const TestMap = Map([]const u8, u32, void);
-const TestNode = zigache.Node([]const u8, u32, void);
 
 test "Map - init and deinit" {
-    var map = try TestMap.init(testing.allocator, 100, 10);
+    var map: TestMap = try .init(testing.allocator, 100, 10);
     defer map.deinit();
 
     try testing.expectEqual(0, map.count());
@@ -161,7 +160,7 @@ test "Map - init and deinit" {
 }
 
 test "Map - set and get" {
-    var map = try TestMap.init(testing.allocator, 1, 1);
+    var map: TestMap = try .init(testing.allocator, 1, 1);
     defer map.deinit();
 
     const key = "key1";
@@ -185,7 +184,7 @@ test "Map - set and get" {
 }
 
 test "Map - remove" {
-    var map = try TestMap.init(testing.allocator, 1, 1);
+    var map: TestMap = try .init(testing.allocator, 1, 1);
     defer map.deinit();
 
     const key = "key1";
@@ -203,7 +202,7 @@ test "Map - remove" {
 }
 
 test "Map - contains" {
-    var map = try TestMap.init(testing.allocator, 2, 2);
+    var map: TestMap = try .init(testing.allocator, 2, 2);
     defer map.deinit();
 
     const key1 = "key1";
@@ -223,7 +222,7 @@ test "Map - contains" {
 }
 
 test "Map - checkTTL" {
-    var map = try TestMap.init(testing.allocator, 1, 1);
+    var map: TestMap = try .init(testing.allocator, 1, 1);
     defer map.deinit();
 
     const key = "key1";
@@ -233,7 +232,9 @@ test "Map - checkTTL" {
     node.* = .{
         .key = key,
         .value = 1,
-        .expiry = std.time.milliTimestamp() - 1000, // Set expiry to 1 second ago
+        .next = null,
+        .prev = null,
+        .expiry = std.time.milliTimestamp() - 1000,
         .data = {},
     };
 
@@ -243,7 +244,7 @@ test "Map - checkTTL" {
 }
 
 test "Map - update existing entry" {
-    var map = try TestMap.init(testing.allocator, 1, 1);
+    var map: TestMap = try .init(testing.allocator, 1, 1);
     defer map.deinit();
 
     const key = "key1";

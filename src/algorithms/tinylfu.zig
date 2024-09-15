@@ -31,9 +31,9 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,
-        window: DoublyLinkedList = .{},
-        probationary: DoublyLinkedList = .{},
-        protected: DoublyLinkedList = .{},
+        window: DoublyLinkedList = .empty,
+        probationary: DoublyLinkedList = .empty,
+        protected: DoublyLinkedList = .empty,
         mutex: Mutex = if (thread_safety) .{} else {},
 
         sketch: CountMinSketch,
@@ -51,8 +51,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
             const probationary_size = @max(1, main_size - protected_size); // 20% of main cache
 
             return .{
-                .map = try Map.init(allocator, cache_size, pool_size),
-                .sketch = try CountMinSketch.init(allocator, cache_size, 4),
+                .map = try .init(allocator, cache_size, pool_size),
+                .sketch = try .init(allocator, cache_size, 4),
                 .window_size = window_size,
                 .probationary_size = probationary_size,
                 .protected_size = protected_size,
@@ -67,14 +67,14 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
             self.map.deinit();
         }
 
-        pub fn contains(self: *Self, key: K, hash_code: u64) bool {
+        pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
-        pub fn count(self: *Self) usize {
+        pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
@@ -105,17 +105,10 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
             defer if (thread_safety) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
-            node.* = .{
-                .key = key,
-                .value = value,
-                .next = node.next,
-                .prev = node.prev,
-                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
-                .data = .{
-                    // New items always start in the window region
-                    .region = if (found_existing) node.data.region else .Window,
-                },
-            };
+            node.update(key, value, ttl, .{
+                // New items always start in the window region
+                .region = if (found_existing) node.data.region else .Window,
+            });
 
             self.sketch.increment(hash_code);
             if (found_existing) {
@@ -205,7 +198,7 @@ const testing = std.testing;
 const TestCache = utils.TestCache(TinyLFU(u32, []const u8, false, true));
 
 test "TinyLFU - basic insert and get" {
-    var cache = try TestCache.init(testing.allocator, 10);
+    var cache: TestCache = try .init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -216,7 +209,7 @@ test "TinyLFU - basic insert and get" {
 }
 
 test "TinyLFU - overwrite existing key" {
-    var cache = try TestCache.init(testing.allocator, 10);
+    var cache: TestCache = try .init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -227,7 +220,7 @@ test "TinyLFU - overwrite existing key" {
 }
 
 test "TinyLFU - remove key" {
-    var cache = try TestCache.init(testing.allocator, 5);
+    var cache: TestCache = try .init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -241,7 +234,7 @@ test "TinyLFU - remove key" {
 }
 
 test "TinyLFU - eviction and promotion" {
-    var cache = try TestCache.init(testing.allocator, 5); // Total size: 5 (window: 1, probationary: 1, protected: 3)
+    var cache: TestCache = try .init(testing.allocator, 5); // Total size: 5 (window: 1, probationary: 1, protected: 3)
     defer cache.deinit();
 
     // Fill the cache
@@ -272,7 +265,7 @@ test "TinyLFU - eviction and promotion" {
 }
 
 test "TinyLFU - TTL functionality" {
-    var cache = try TestCache.init(testing.allocator, 5);
+    var cache: TestCache = try .init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

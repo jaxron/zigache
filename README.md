@@ -122,10 +122,10 @@ To use Zigache in your project, follow these steps:
         const allocator = gpa.allocator();
     
         // Create a cache with string keys and values
-        var cache = try Cache([]const u8, []const u8, .{
+        var cache: Cache([]const u8, []const u8, .{
             .cache_size = 1,
             .policy = .SIEVE,
-        }).init(allocator);
+        }) = try .init(allocator);
         defer cache.deinit();
     
         // your code...
@@ -150,14 +150,14 @@ zig build basic
 Zigache offers flexible configuration options to adjust the cache to your needs:
 
 ```zig
-var cache = try Cache([]const u8, []const u8, .{
+var cache: Cache([]const u8, []const u8, .{
     .cache_size = 10000,   // Total number of items the cache can hold
     .pool_size = 1000,     // Total number of nodes to pre-allocate for better performance
     .shard_count = 16,     // Number of shards for concurrent access
     .thread_safety = true, // Whether to enable safety features for concurrent access
     .ttl_enabled = false,  // Whether to enable the Time-To-Live (TTL) functionality
     .policy = .SIEVE,      // Eviction policy
-}).init(allocator);
+}) = try .init(allocator);
 ```
 
 > For more detailed information, refer to the [full documentation](https://jaxron.me/zigache/).

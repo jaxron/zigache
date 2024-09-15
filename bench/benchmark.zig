@@ -46,11 +46,7 @@ pub fn Benchmark(comptime config: Config) type {
             }
         }
 
-        fn runBenchmarks(
-            self: *Self,
-            comptime BenchType: fn (comptime Config, comptime EvictionPolicy) type,
-            keys: []const utils.Sample,
-        ) !void {
+        fn runBenchmarks(self: *Self, comptime BenchType: fn (comptime Config, comptime EvictionPolicy) type, keys: []const utils.Sample) !void {
             // Get all eviction policies
             const policies = comptime std.meta.tags(EvictionPolicy);
             var results = try self.allocator.alloc(BenchmarkResult, policies.len);
@@ -58,8 +54,7 @@ pub fn Benchmark(comptime config: Config) type {
 
             // Run benchmark for each eviction policy
             inline for (policies, 0..) |policy, i| {
-                const Bench = BenchType(config, policy);
-                results[i] = try Bench.bench(self.allocator, keys);
+                results[i] = try BenchType(config, policy).bench(self.allocator, keys);
             }
 
             // Print results
@@ -68,8 +63,8 @@ pub fn Benchmark(comptime config: Config) type {
         }
 
         fn generateKeys(self: *Self, num_keys: u32, s: f64) ![]utils.Sample {
-            var zipf_distribution = try Zipfian.init(num_keys, s);
-            var prng = std.Random.DefaultPrng.init(blk: {
+            var zipf_distribution: Zipfian = try .init(num_keys, s);
+            var prng: std.Random.DefaultPrng = .init(blk: {
                 var seed: u64 = undefined;
                 try std.posix.getrandom(std.mem.asBytes(&seed));
                 break :blk seed;

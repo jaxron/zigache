@@ -81,7 +81,7 @@ pub const CountMinSketch = struct {
 const testing = std.testing;
 
 test "CountMinSketch - initialization" {
-    var cms = try CountMinSketch.init(testing.allocator, 10, 5);
+    var cms: CountMinSketch = try .init(testing.allocator, 10, 5);
     defer cms.deinit();
 
     try testing.expectEqual(10, cms.width);
@@ -89,7 +89,7 @@ test "CountMinSketch - initialization" {
 }
 
 test "CountMinSketch - increment and estimate" {
-    var cms = try CountMinSketch.init(testing.allocator, 100, 5);
+    var cms: CountMinSketch = try .init(testing.allocator, 100, 5);
     defer cms.deinit();
 
     const item1: u64 = 123;
@@ -112,7 +112,7 @@ test "CountMinSketch - increment and estimate" {
 }
 
 test "CountMinSketch - overflow and reset" {
-    var cms = try CountMinSketch.init(testing.allocator, 10, 3);
+    var cms: CountMinSketch = try .init(testing.allocator, 10, 3);
     defer cms.deinit();
 
     const item: u64 = 123;
@@ -129,7 +129,7 @@ test "CountMinSketch - overflow and reset" {
 }
 
 test "CountMinSketch - multiple items" {
-    var cms = try CountMinSketch.init(testing.allocator, 100, 5);
+    var cms: CountMinSketch = try .init(testing.allocator, 100, 5);
     defer cms.deinit();
 
     const items = [_]u64{ 1, 2, 3, 4, 5 };

@@ -3,6 +3,8 @@
 
 const std = @import("std");
 
+const DefaultPrng = std.Random.DefaultPrng;
+
 // Number of elements in the distribution (range: [1, n])
 n: u64,
 // Exponent parameter (s in the Zipf's law formula)
@@ -73,7 +75,7 @@ const testing = std.testing;
 
 test "ZipfianDistribution - initialization" {
     // Test valid initialization
-    const valid_dist = try Self.init(100, 1.5);
+    const valid_dist: Self = try .init(100, 1.5);
     try testing.expect(valid_dist.n == 100);
     try testing.expect(valid_dist.s == 1.5);
 
@@ -84,10 +86,10 @@ test "ZipfianDistribution - initialization" {
 }
 
 test "ZipfianDistribution - next" {
-    var prng = std.Random.DefaultPrng.init(0);
+    var prng: DefaultPrng = .init(0);
     const rng = prng.random();
 
-    var dist = try Self.init(100, 1.5);
+    var dist: Self = try .init(100, 1.5);
 
     // Generate a large number of samples
     var samples: [10000]u64 = undefined;
@@ -114,11 +116,11 @@ test "ZipfianDistribution - next" {
 }
 
 test "ZipfianDistribution - deterministic behavior" {
-    var prng1 = std.Random.DefaultPrng.init(0);
-    var prng2 = std.Random.DefaultPrng.init(0);
+    var prng1: DefaultPrng = .init(0);
+    var prng2: DefaultPrng = .init(0);
 
-    var dist1 = try Self.init(100, 1.5);
-    var dist2 = try Self.init(100, 1.5);
+    var dist1: Self = try .init(100, 1.5);
+    var dist2: Self = try .init(100, 1.5);
 
     // Generate samples from both distributions
     for (0..1000) |_| {

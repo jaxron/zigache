@@ -31,9 +31,9 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, 
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,
-        small: DoublyLinkedList = .{},
-        main: DoublyLinkedList = .{},
-        ghost: DoublyLinkedList = .{},
+        small: DoublyLinkedList = .empty,
+        main: DoublyLinkedList = .empty,
+        ghost: DoublyLinkedList = .empty,
         mutex: Mutex = if (thread_safety) .{} else {},
 
         max_size: u32,
@@ -49,7 +49,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, 
             const other_size = @max(1, (cache_size - small_size) / 2);
 
             return .{
-                .map = try Map.init(allocator, cache_size, pool_size),
+                .map = try .init(allocator, cache_size, pool_size),
                 .max_size = small_size + other_size * 2,
                 .main_size = other_size,
                 .small_size = small_size,
@@ -64,14 +64,14 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, 
             self.map.deinit();
         }
 
-        pub fn contains(self: *Self, key: K, hash_code: u64) bool {
+        pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
-        pub fn count(self: *Self) usize {
+        pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
@@ -108,17 +108,10 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, 
             }
 
             const node, const found_existing = try self.map.set(key, hash_code);
-            node.* = .{
-                .key = key,
-                .value = value,
-                .next = node.next,
-                .prev = node.prev,
-                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
-                .data = .{
-                    .queue = if (found_existing) node.data.queue else .Small,
-                    .freq = if (found_existing) node.data.freq else 0,
-                },
-            };
+            node.update(key, value, ttl, .{
+                .queue = if (found_existing) node.data.queue else .Small,
+                .freq = if (found_existing) node.data.freq else 0,
+            });
 
             if (found_existing) {
                 if (node.data.queue == .Ghost) {
@@ -215,7 +208,7 @@ const testing = std.testing;
 const TestCache = utils.TestCache(S3FIFO(u32, []const u8, false, true));
 
 test "S3FIFO - basic insert and get" {
-    var cache = try TestCache.init(testing.allocator, 10);
+    var cache: TestCache = try .init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -226,7 +219,7 @@ test "S3FIFO - basic insert and get" {
 }
 
 test "S3FIFO - overwrite existing key" {
-    var cache = try TestCache.init(testing.allocator, 10);
+    var cache: TestCache = try .init(testing.allocator, 10);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -237,7 +230,7 @@ test "S3FIFO - overwrite existing key" {
 }
 
 test "S3FIFO - remove key" {
-    var cache = try TestCache.init(testing.allocator, 5);
+    var cache: TestCache = try .init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -251,7 +244,7 @@ test "S3FIFO - remove key" {
 }
 
 test "S3FIFO - eviction and promotion" {
-    var cache = try TestCache.init(testing.allocator, 5); // Total size: 5 (small: 1, main: 2, ghost: 2)
+    var cache: TestCache = try .init(testing.allocator, 5); // Total size: 5 (small: 1, main: 2, ghost: 2)
     defer cache.deinit();
 
     // Fill the cache
@@ -280,7 +273,7 @@ test "S3FIFO - eviction and promotion" {
 }
 
 test "S3FIFO - TTL functionality" {
-    var cache = try TestCache.init(testing.allocator, 5);
+    var cache: TestCache = try .init(testing.allocator, 5);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL

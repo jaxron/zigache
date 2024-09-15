@@ -8,20 +8,18 @@ const Config = utils.Config;
 pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) type {
     return struct {
         pub fn bench(_: std.mem.Allocator, keys: []const utils.Sample) !BenchmarkResult {
-            var gpa = std.heap.GeneralPurposeAllocator(.{
-                .enable_memory_limit = true,
-            }){};
+            var gpa: std.heap.GeneralPurposeAllocator(.{ .enable_memory_limit = true }) = .init;
             defer _ = gpa.deinit();
             const local_allocator = gpa.allocator();
             const stdout = std.io.getStdOut().writer();
 
             // Initialize the cache with the specified configuration
-            var cache = try zigache.Cache(u64, u64, .{
+            var cache: zigache.Cache(u64, u64, .{
                 .cache_size = opts.cache_size,
                 .pool_size = opts.pool_size,
                 .policy = policy,
                 .thread_safety = false,
-            }).init(local_allocator);
+            }) = try .init(local_allocator);
             defer cache.deinit();
 
             // Main benchmark loop
@@ -29,7 +27,7 @@ pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) ty
             var hits: u64 = 0;
             var misses: u64 = 0;
 
-            var timer = try std.time.Timer.start();
+            var timer: std.time.Timer = try .start();
             while (true) {
                 switch (opts.stop_condition) {
                     .duration => |ms| if (run_time >= ms * std.time.ns_per_ms) break,

@@ -5,18 +5,16 @@ const Allocator = std.mem.Allocator;
 /// TestCache is a wrapper around a Cache implementation that simplifies testing
 /// by providing a consistent interface for different cache algorithms.
 pub fn TestCache(comptime Cache: type) type {
-    return struct {
-        const K = u32;
-        const V = []const u8;
+    const K = u32;
+    const V = []const u8;
 
+    return struct {
         cache: Cache,
 
         const Self = @This();
 
         pub fn init(allocator: Allocator, cache_size: K) !Self {
-            return .{
-                .cache = try Cache.init(allocator, cache_size, cache_size),
-            };
+            return .{ .cache = try .init(allocator, cache_size, cache_size) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -54,13 +52,4 @@ pub fn hash(comptime K: type, key: K) u64 {
             return hasher.final();
         }
     }
-}
-
-/// Calculate the expiry time for a given TTL.
-/// Returns the current time plus the TTL in milliseconds, or null if no TTL is provided.
-pub inline fn getExpiry(ttl: ?u64) ?i64 {
-    return if (ttl) |t|
-        std.time.milliTimestamp() + @as(i64, @intCast(t))
-    else
-        null;
 }

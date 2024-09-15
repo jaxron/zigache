@@ -11,19 +11,18 @@ const Allocator = std.mem.Allocator;
 /// that items that have been used recently are likely to be used again soon.
 pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
     return struct {
-        const Node = zigache.Node(K, V, void);
         const Map = zigache.Map(K, V, void);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,
-        list: DoublyLinkedList = .{},
+        list: DoublyLinkedList = .empty,
         mutex: Mutex = if (thread_safety) .{} else {},
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
-            return .{ .map = try Map.init(allocator, cache_size, pool_size) };
+            return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
         pub fn deinit(self: *Self) void {
@@ -31,14 +30,14 @@ pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool, com
             self.map.deinit();
         }
 
-        pub fn contains(self: *Self, key: K, hash_code: u64) bool {
+        pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
             return self.map.contains(key, hash_code);
         }
 
-        pub fn count(self: *Self) usize {
+        pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
 
@@ -68,14 +67,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool, com
             defer if (thread_safety) self.mutex.unlock();
 
             const node, const found_existing = try self.map.set(key, hash_code);
-            node.* = .{
-                .key = key,
-                .value = value,
-                .next = node.next,
-                .prev = node.prev,
-                .expiry = if (ttl_enabled) utils.getExpiry(ttl) else null,
-                .data = {},
-            };
+            node.update(key, value, ttl, {});
 
             if (found_existing) {
                 // Move updated node to the back (most recently used)
@@ -114,7 +106,7 @@ const testing = std.testing;
 const TestCache = utils.TestCache(LRU(u32, []const u8, false, true));
 
 test "LRU - basic insert and get" {
-    var cache = try TestCache.init(testing.allocator, 2);
+    var cache: TestCache = try .init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -126,7 +118,7 @@ test "LRU - basic insert and get" {
 }
 
 test "LRU - overwrite existing key" {
-    var cache = try TestCache.init(testing.allocator, 2);
+    var cache: TestCache = try .init(testing.allocator, 2);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -137,7 +129,7 @@ test "LRU - overwrite existing key" {
 }
 
 test "LRU - remove key" {
-    var cache = try TestCache.init(testing.allocator, 1);
+    var cache: TestCache = try .init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -151,7 +143,7 @@ test "LRU - remove key" {
 }
 
 test "LRU - eviction" {
-    var cache = try TestCache.init(testing.allocator, 4);
+    var cache: TestCache = try .init(testing.allocator, 4);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -178,7 +170,7 @@ test "LRU - eviction" {
 }
 
 test "LRU - TTL functionality" {
-    var cache = try TestCache.init(testing.allocator, 1);
+    var cache: TestCache = try .init(testing.allocator, 1);
     defer cache.deinit();
 
     try cache.setTTL(1, "value1", 1); // 1ms TTL
