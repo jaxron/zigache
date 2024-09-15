@@ -45,5 +45,5 @@ fn getStopCondition() utils.StopCondition {
 
 // Ensure that the zipfian module is included in the build for tests
 comptime {
-    _ = @import("zipfian.zig");
+    _ = @import("Zipfian.zig");
 }
