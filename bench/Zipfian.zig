@@ -84,7 +84,7 @@ test "ZipfianDistribution - initialization" {
 }
 
 test "ZipfianDistribution - next" {
-    var prng = std.rand.DefaultPrng.init(42);
+    var prng = std.Random.DefaultPrng.init(0);
     const rng = prng.random();
 
     var dist = try Self.init(100, 1.5);
@@ -114,8 +114,8 @@ test "ZipfianDistribution - next" {
 }
 
 test "ZipfianDistribution - deterministic behavior" {
-    var prng1 = std.rand.DefaultPrng.init(42);
-    var prng2 = std.rand.DefaultPrng.init(42);
+    var prng1 = std.Random.DefaultPrng.init(0);
+    var prng2 = std.Random.DefaultPrng.init(0);
 
     var dist1 = try Self.init(100, 1.5);
     var dist2 = try Self.init(100, 1.5);
