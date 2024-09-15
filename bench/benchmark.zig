@@ -29,18 +29,18 @@ pub fn Benchmark(comptime config: Config) type {
             // Run benchmarks based on the execution mode
             switch (config.execution_mode) {
                 .single => {
-                    try printBenchmarkHeader("Single Threaded");
+                    try printBenchmarkHeader(false);
                     try self.runBenchmarks(single_threaded.SingleThreaded, keys);
                 },
                 .multi => {
-                    try printBenchmarkHeader("Multi Threaded");
+                    try printBenchmarkHeader(true);
                     try self.runBenchmarks(multi_threaded.MultiThreaded, keys);
                 },
                 .both => {
-                    try printBenchmarkHeader("Single Threaded");
+                    try printBenchmarkHeader(false);
                     try self.runBenchmarks(single_threaded.SingleThreaded, keys);
 
-                    try printBenchmarkHeader("Multi Threaded");
+                    try printBenchmarkHeader(true);
                     try self.runBenchmarks(multi_threaded.MultiThreaded, keys);
                 },
             }
@@ -88,16 +88,19 @@ pub fn Benchmark(comptime config: Config) type {
             return keys;
         }
 
-        fn printBenchmarkHeader(mode: []const u8) !void {
+        fn printBenchmarkHeader(is_multi: bool) !void {
             const stdout = std.io.getStdOut().writer();
-            try stdout.print("{s}: ", .{mode});
 
+            // Print required configuration
+            try stdout.print("{s}: ", .{if (is_multi) "Multi Threaded" else "Single Threaded"});
             switch (config.stop_condition) {
                 .duration => |ms| try stdout.print("duration={d:.2}s ", .{@as(f64, @floatFromInt(ms)) / 1000}),
                 .operations => |ops| try stdout.print("operations={d} ", .{ops}),
             }
             try stdout.print("keys={d} cache-size={d} pool-size={d} zipf={d:.2}", .{ config.num_keys, config.cache_size, config.pool_size orelse config.cache_size, config.zipf });
-            if (config.execution_mode == .multi) {
+
+            // Print additional configuration for multi-threaded benchmarks
+            if (is_multi) {
                 try stdout.print(" shards={d} threads={d}", .{ config.shard_count, config.num_threads });
             }
 
