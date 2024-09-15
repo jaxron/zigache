@@ -3,6 +3,18 @@
       <img height="120" alt="Zigache" src="./assets/images/zigache_logo.png">
     </picture>
   <br>
+  <a href="https://github.com/jaxron/zigache/blob/main/LICENSE.md">
+    <img src="https://img.shields.io/github/license/jaxron/zigache?style=flat-square&color=F27523">
+  </a>
+  <a href="https://github.com/jaxron/zigache/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/jaxron/zigache/ci.yml?style=flat-square&color=F27523">
+  </a>
+  <a href="https://jaxron.me/zigache/">
+    <img src="https://img.shields.io/badge/zigache-docs-00ACD7.svg?style=flat-square&color=F27523">
+  </a>
+  <a href="https://github.com/jaxron/zigache/issues">
+    <img src="https://img.shields.io/github/issues/jaxron/zigache?style=flat-square&color=F27523">
+  </a>
 </h1>
 
 <p align="center">
@@ -12,7 +24,7 @@
 ---
 
 > [!IMPORTANT]
-> Zigache is currently in **early development** and **under heavy progress**. This project follows Mach Engine's nominated zig version - `2024.5.0-mach` / `0.13.0-dev.351+64ef45eb0`. For more information, see [this](https://machengine.org/docs/nominated-zig/).
+> Zigache is currently in **early development**. This project follows Mach Engine's nominated zig version - `2024.5.0-mach` / `0.13.0-dev.351+64ef45eb0`. For more information, see [this](https://machengine.org/docs/nominated-zig/).
 
 # 📚 Table of Contents
 
@@ -37,8 +49,8 @@ Zigache offers a rich set of features to designed to meet various caching needs:
 - **Configurable Cache Size** with pre-allocation options
 - **Time-To-Live (TTL)** support for cache entries
 - **Thread-Safe Operations** for stability in concurrent environments
-- **Sharding Support** for better performance in concurrent environments
-- **Stability and Performance** with benchmarking and heavy testing
+- **Sharding Support** for improved performance in concurrent environments
+- **Heavy Testing and Benchmarking** for stability and performance
 
 > 💡 **We value your input!** If you have suggestions for our project, please open an issue or start a discussion.
 
@@ -59,8 +71,8 @@ To use Zigache in your project, follow these steps:
         },
         .dependencies = .{
             .zigache = .{
-                .url = "https://github.com/jaxron/zigache/archive/25f8faa1a5f5c9fa935d7fab6e0c235fb859b0f1.tar.gz",
-                .hash = "12201f6ff920dd4b9da19bc99ab0ef60035be8ad5163208365e667db2747464bc593",
+                .url = "https://github.com/jaxron/zigache/archive/98df0e9c7b6d19e7b3c4463b66c16ac2c1894961.tar.gz",
+                .hash = "12204a5842fe092ebd164312f8734ce0170fbc285c9a40d99de05f3dfa77755457a0",
             },
         },
     }
@@ -143,15 +155,21 @@ var cache = try Cache([]const u8, []const u8, .{
     .pool_size = 1000,     // Total number of nodes to pre-allocate for better performance
     .shard_count = 16,     // Number of shards for concurrent access
     .thread_safety = true, // Whether to enable safety features for concurrent access
+    .ttl_enabled = false,  // Whether to enable the Time-To-Live (TTL) functionality
     .policy = .SIEVE,      // Eviction policy
 }).init(allocator);
 ```
 
+> For more detailed information, refer to the [full documentation](https://jaxron.me/zigache/).
+
 # 📊 Performance
 
-This benchmark utilizes a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law) with a parameter of 1.0, which is commonly used to model real-world data access patterns and simulate realistic workloads.
+This benchmark utilizes a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law) with a parameter of 1.0, run on an Intel® Core™ i7-8700 CPU in Ubuntu 22.04.
 
-Benchmark parameters:
+> [!NOTE]
+> Keep in mind that these results are not conclusive. Performance varies with workload and environment. Some eviction policies may perform better for specific use cases, so it's best to experiment with different parameters.
+
+Benchmark parameters used:
 
 ```sh
 ubuntu@ubuntu:~/zigache$ zig build bench -Doptimize=ReleaseFast -Dmode=both -Dduration=60000 -Dzipf="1.0" -Dshards=64 -Dthreads=4
@@ -159,9 +177,9 @@ ubuntu@ubuntu:~/zigache$ zig build bench -Doptimize=ReleaseFast -Dmode=both -Ddu
 
 For more details on the available flags, run `zig build -h`.
 
-## Single-Threaded Performance
+## Single-Threaded
 
-```
+```markdown
 Single Threaded: duration=60.00s keys=320000 cache-size=10000 pool-size=10000 zipf=1.00
 --------+------------+--------+-------------+--------------+-----------+-----------+-------------
 Name    | Total Ops  | ns/op  | ops/s       | Hit Rate (%) | Hits      | Misses    | Memory (MB) 
@@ -174,9 +192,9 @@ S3FIFO  | 938150865  | 63.96  | 15635847.75 | 68.91        | 646522113 | 2916287
 --------+------------+--------+-------------+--------------+-----------+-----------+-------------
 ```
 
-## Multi-Threaded Performance
+## Multi-Threaded
 
-```
+```markdown
 Multi Threaded: duration=60.00s keys=320000 cache-size=10000 pool-size=10000 zipf=1.00 shards=64 threads=4
 --------+------------+--------+------------+--------------+-----------+-----------+-------------
 Name    | Total Ops  | ns/op  | ops/s      | Hit Rate (%) | Hits      | Misses    | Memory (MB) 
@@ -191,8 +209,11 @@ S3FIFO  | 1004268540 | 238.98 | 4184452.23 | 69.79        | 700884097 | 30338444
 
 ### Key Observations
 
-- FIFO and SIEVE policies generally offer the highest throughput.
-- TinyLFU and SIEVE provide the best hit rates, which can be crucial for certain applications.
+- **FIFO** offers high throughput, especially in single-threaded scenarios, but has a lower hit rate than others.
+- **LRU** performs well but falls behind **SIEVE** and **TinyLFU** in both throughput and hit rate.
+- **TinyLFU** achieves the best hit rate, particularly in multi-threaded scenarios, making it ideal for workloads prioritizing cache efficiency.
+- **SIEVE** strikes the best balance of throughput and hit rate in both single and multi-threaded environments.
+- **S3FIFO** delivers strong multi-threaded throughput while maintaining a solid hit rate.
 
 # 🤝 Contributing
 
