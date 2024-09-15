@@ -11,7 +11,7 @@
 
 ---
 
-> [!NOTE]
+> [!IMPORTANT]
 > Zigache is currently in **early development** and **under heavy progress**. This project follows Mach Engine's nominated zig version - `2024.5.0-mach` / `0.13.0-dev.351+64ef45eb0`. For more information, see [this](https://machengine.org/docs/nominated-zig/).
 
 # 📚 Table of Contents
@@ -149,12 +149,12 @@ var cache = try Cache([]const u8, []const u8, .{
 
 # 📊 Performance
 
-This benchmark utilizes a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law), which is commonly used to model real-world data access patterns and to simulate a realistic workload.
+This benchmark utilizes a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law) with a parameter of 1.0, which is commonly used to model real-world data access patterns and simulate realistic workloads.
 
 Benchmark parameters:
 
 ```sh
-zig build bench -Doptimize=ReleaseFast -Dmode=both -Dduration=60000 -Dshards=64 -Dthreads=4
+ubuntu@ubuntu:~/zigache$ zig build bench -Doptimize=ReleaseFast -Dmode=both -Dduration=60000 -Dzipf="1.0" -Dshards=64 -Dthreads=4
 ```
 
 For more details on the available flags, run `zig build -h`.
@@ -162,31 +162,31 @@ For more details on the available flags, run `zig build -h`.
 ## Single-Threaded Performance
 
 ```
-Single Threaded: duration=60.00s keys=1000000 cache-size=10000 pool-size=10000 zipf=0.70
---------+-----------+--------+-------------+--------------+-----------+-----------+-------------
-Name    | Total Ops | ns/op  | ops/s       | Hit Rate (%) | Hits      | Misses    | Memory (MB)
---------+-----------+--------+-------------+--------------+-----------+-----------+-------------
-FIFO    | 770637120 | 77.86  | 12843952.00 | 10.66        | 82151521  | 688485599 | 0.82
-LRU     | 704728198 | 85.14  | 11745469.97 | 12.09        | 85203420  | 619524778 | 0.82
-TinyLFU | 534006855 | 112.36 | 8900114.25  | 22.10        | 118009443 | 415997412 | 0.93
-SIEVE   | 728619842 | 82.35  | 12143664.03 | 21.10        | 153732369 | 574887473 | 0.89
-S3FIFO  | 725894226 | 82.66  | 12098237.10 | 18.37        | 133332817 | 592561409 | 0.89
---------+-----------+--------+-------------+--------------+-----------+-----------+-------------
+Single Threaded: duration=60.00s keys=320000 cache-size=10000 pool-size=10000 zipf=1.00
+--------+------------+--------+-------------+--------------+-----------+-----------+-------------
+Name    | Total Ops  | ns/op  | ops/s       | Hit Rate (%) | Hits      | Misses    | Memory (MB) 
+--------+------------+--------+-------------+--------------+-----------+-----------+-------------
+FIFO    | 1011924108 | 59.29  | 16865401.79 | 61.47        | 622013224 | 389910884 | 0.82        
+LRU     | 974760215  | 61.55  | 16246003.58 | 65.14        | 634923543 | 339836672 | 0.82        
+TinyLFU | 319355703  | 187.88 | 5322595.05  | 70.81        | 226131076 | 93224627  | 0.93        
+SIEVE   | 1066801149 | 56.24  | 17780019.14 | 72.03        | 768447908 | 298353241 | 0.89        
+S3FIFO  | 938150865  | 63.96  | 15635847.75 | 68.91        | 646522113 | 291628752 | 0.89        
+--------+------------+--------+-------------+--------------+-----------+-----------+-------------
 ```
 
 ## Multi-Threaded Performance
 
 ```
-Multi Threaded: duration=60.00s keys=1000000 cache-size=10000 pool-size=10000 zipf=0.70 shards=64 threads=4
---------+-----------+--------+------------+--------------+-----------+-----------+-------------
-Name    | Total Ops | ns/op  | ops/s      | Hit Rate (%) | Hits      | Misses    | Memory (MB)
---------+-----------+--------+------------+--------------+-----------+-----------+-------------
-FIFO    | 687328718 | 349.18 | 2863869.65 | 10.68        | 73374073  | 613954645 | 0.84
-LRU     | 648651614 | 370.00 | 2702715.06 | 12.08        | 78382239  | 570269375 | 0.84
-TinyLFU | 610648356 | 393.02 | 2544368.14 | 21.84        | 133361276 | 477287080 | 0.96
-SIEVE   | 733687934 | 327.11 | 3057033.05 | 22.53        | 165316944 | 568370990 | 0.92
-S3FIFO  | 634874645 | 378.03 | 2645311.00 | 19.66        | 124786665 | 510087980 | 0.92
---------+-----------+--------+------------+--------------+-----------+-----------+-------------
+Multi Threaded: duration=60.00s keys=320000 cache-size=10000 pool-size=10000 zipf=1.00 shards=64 threads=4
+--------+------------+--------+------------+--------------+-----------+-----------+-------------
+Name    | Total Ops  | ns/op  | ops/s      | Hit Rate (%) | Hits      | Misses    | Memory (MB) 
+--------+------------+--------+------------+--------------+-----------+-----------+-------------
+FIFO    | 969530870  | 247.54 | 4039711.93 | 61.40        | 595302615 | 374228255 | 0.84        
+LRU     | 815681027  | 294.23 | 3398670.94 | 65.02        | 530381235 | 285299792 | 0.84        
+TinyLFU | 718285582  | 334.13 | 2992856.58 | 73.26        | 526248962 | 192036620 | 0.96        
+SIEVE   | 1000027550 | 239.99 | 4166781.42 | 74.02        | 740237765 | 259789785 | 0.92        
+S3FIFO  | 1004268540 | 238.98 | 4184452.23 | 69.79        | 700884097 | 303384443 | 0.91        
+--------+------------+--------+------------+--------------+-----------+-----------+-------------
 ```
 
 ### Key Observations
