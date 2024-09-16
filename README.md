@@ -24,7 +24,7 @@
 ---
 
 > [!IMPORTANT]
-> Zigache is currently in **early development** and follows Zig's latest nightly build. Last updated for `0.14.0-dev.1573+4d81e8ee9`.
+> Zigache is currently in **early development** and follows Zig's latest nightly build. Last tested with `0.14.0-dev.1573+4d81e8ee9`.
 
 # 📚 Table of Contents
 
@@ -33,6 +33,7 @@
 - [👀 Examples](#-examples)
 - [⚙️ Configuration](#%EF%B8%8F-configuration)
 - [📊 Performance](#-performance)
+- [🗺️ Roadmap](#%EF%B8%8F-roadmap)
 - [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
 
@@ -51,8 +52,6 @@ Zigache offers a rich set of features to designed to meet various caching needs:
 - **Thread-Safe Operations** for stability in concurrent environments
 - **Sharding Support** for improved performance in concurrent environments
 - **Heavy Testing and Benchmarking** for stability and performance
-
-> 💡 **We value your input!** If you have suggestions for our project, please open an issue or start a discussion.
 
 # ⚡️ Quickstart
 
@@ -172,7 +171,7 @@ This benchmark utilizes a [Zipfian distribution](https://en.wikipedia.org/wiki/Z
 Benchmark parameters used:
 
 ```sh
-ubuntu@ubuntu:~/zigache$ zig build bench -Doptimize=ReleaseFast -Dmode=both -Dduration=60000 -Dzipf="1.0" -Dshards=64 -Dthreads=4
+zig build bench -Doptimize=ReleaseFast -Dmode=both -Dduration=60000 -Dzipf="1.0" -Dshards=64 -Dthreads=4
 ```
 
 For more details on the available flags, run `zig build -h`.
@@ -214,6 +213,19 @@ S3FIFO  | 1004268540 | 238.98 | 4184452.23 | 69.79        | 700884097 | 30338444
 - **TinyLFU** achieves the best hit rate, particularly in multi-threaded scenarios, making it ideal for workloads prioritizing cache efficiency.
 - **SIEVE** strikes the best balance of throughput and hit rate in both single and multi-threaded environments.
 - **S3FIFO** delivers strong multi-threaded throughput while maintaining a solid hit rate.
+
+# 🗺️ Roadmap
+
+Zigache is in its early stages. Our current focus is on implementing features, with performance optimizations planned for the future. Here are some things we have planned for the future:
+
+- [ ] ⚙️ Runtime-configurable API
+- [ ] 📦 Batch operations support
+- [ ] 📊 Metrics and monitoring
+- [ ] 🧪 Improved benchmarking suite
+- [ ] 🔄 Adaptive system to adjust eviction policies
+- [ ] 🔓 Lock-free data structures
+
+> 💡 **We value your input!** Have suggestions for our roadmap? Feel free to open an issue or start a discussion.
 
 # 🤝 Contributing
 
