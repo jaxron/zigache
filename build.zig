@@ -91,7 +91,7 @@ pub fn build(b: *std.Build) void {
         example_step.dependOn(&example_cmd.step);
     }
 
-    // Library Tests
+    // Tests
     const lib_test = b.addTest(.{
         .root_source_file = b.path("src/zigache.zig"),
         .test_runner = b.path("test_runner.zig"),
@@ -99,12 +99,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
     lib_test.root_module.addImport("zigache", zigache_mod);
-
     const run_test = b.addRunArtifact(lib_test);
-    const test_step = b.step("test", "Run library tests");
-    test_step.dependOn(&run_test.step);
 
-    // Benchmark Tests
     const bench_test = b.addTest(.{
         .root_source_file = b.path("bench/main.zig"),
         .test_runner = b.path("test_runner.zig"),
@@ -112,10 +108,11 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
     bench_test.root_module.addImport("zigache", zigache_mod);
-
     const run_bench_test = b.addRunArtifact(bench_test);
-    const bench_test_step = b.step("bench-test", "Run benchmark tests");
-    bench_test_step.dependOn(&run_bench_test.step);
+
+    const test_step = b.step("test", "Run library tests");
+    test_step.dependOn(&run_test.step);
+    test_step.dependOn(&run_bench_test.step);
 
     // Docs
     const docs = b.addExecutable(.{
