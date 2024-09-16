@@ -98,77 +98,16 @@ pub const Config = struct {
 /// This function returns a cache type specialized for the given key and value types.
 pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
     return struct {
-        /// A unified interface for different cache implementations.
-        pub const CacheImpl = union(Config.EvictionPolicy) {
-            // NOTE: While it's better to implement interface-like behavior using
-            // vtables (structs with function pointers), it can introduce complexity
-            // or runtime overhead. I have chosen the union approach here as I do not
-            // wish to complicate the structure of the code and I am willing to accept
-            // the trade-offs for now. I may choose revisit this decision in the future
-            // when accepted proposals like pinned structs are implemented in Zig as well
-            // as certain safety features.
-
-            const _FIFO = FIFO(K, V, config.thread_safety, config.ttl_enabled);
-            const _LRU = LRU(K, V, config.thread_safety, config.ttl_enabled);
-            const _TinyLFU = TinyLFU(K, V, config.thread_safety, config.ttl_enabled);
-            const _SIEVE = SIEVE(K, V, config.thread_safety, config.ttl_enabled);
-            const _S3FIFO = S3FIFO(K, V, config.thread_safety, config.ttl_enabled);
-
-            FIFO: _FIFO,
-            LRU: _LRU,
-            TinyLFU: _TinyLFU,
-            SIEVE: _SIEVE,
-            S3FIFO: _S3FIFO,
-
-            pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, policy: Config.EvictionPolicy) !CacheImpl {
-                return switch (policy) {
-                    .FIFO => .{ .FIFO = try _FIFO.init(allocator, cache_size, pool_size) },
-                    .LRU => .{ .LRU = try _LRU.init(allocator, cache_size, pool_size) },
-                    .TinyLFU => .{ .TinyLFU = try _TinyLFU.init(allocator, cache_size, pool_size) },
-                    .SIEVE => .{ .SIEVE = try _SIEVE.init(allocator, cache_size, pool_size) },
-                    .S3FIFO => .{ .S3FIFO = try _S3FIFO.init(allocator, cache_size, pool_size) },
-                };
-            }
-
-            pub fn deinit(self: *CacheImpl) void {
-                switch (self.*) {
-                    inline else => |*case| case.deinit(),
-                }
-            }
-
-            pub fn set(self: *CacheImpl, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
-                switch (self.*) {
-                    inline else => |*case| try case.set(key, value, ttl, hash_code),
-                }
-            }
-
-            pub fn get(self: *CacheImpl, key: K, hash_code: u64) ?V {
-                return switch (self.*) {
-                    inline else => |*case| case.get(key, hash_code),
-                };
-            }
-
-            pub fn remove(self: *CacheImpl, key: K, hash_code: u64) bool {
-                return switch (self.*) {
-                    inline else => |*case| case.remove(key, hash_code),
-                };
-            }
-
-            pub fn contains(self: *CacheImpl, key: K, hash_code: u64) bool {
-                return switch (self.*) {
-                    inline else => |*case| case.contains(key, hash_code),
-                };
-            }
-
-            pub fn count(self: *CacheImpl) usize {
-                return switch (self.*) {
-                    inline else => |*case| case.count(),
-                };
-            }
+        const CacheType = switch (config.policy) {
+            .FIFO => FIFO(K, V, config.thread_safety, config.ttl_enabled),
+            .LRU => LRU(K, V, config.thread_safety, config.ttl_enabled),
+            .TinyLFU => TinyLFU(K, V, config.thread_safety, config.ttl_enabled),
+            .SIEVE => SIEVE(K, V, config.thread_safety, config.ttl_enabled),
+            .S3FIFO => S3FIFO(K, V, config.thread_safety, config.ttl_enabled),
         };
 
         allocator: std.mem.Allocator,
-        shards: []CacheImpl,
+        shards: []CacheType,
         shard_mask: u16,
 
         const Self = @This();
@@ -182,11 +121,11 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             // the `set` method in the Map implementation for more information.
             const shard_pool_size = (config.pool_size orelse config.cache_size) / shard_count + 1;
 
-            const shards = try allocator.alloc(CacheImpl, shard_count);
+            const shards = try allocator.alloc(CacheType, shard_count);
             errdefer allocator.free(shards);
 
             for (shards) |*shard| {
-                shard.* = try CacheImpl.init(allocator, shard_cache_size, shard_pool_size, config.policy);
+                shard.* = try CacheType.init(allocator, shard_cache_size, shard_pool_size);
             }
 
             return .{
@@ -253,7 +192,7 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
 
         /// Determines which shard a given key belongs to based on its hash.
         /// This method ensures even distribution of items across shards for load balancing.
-        pub fn getShard(self: *Self, key: K) struct { u64, *CacheImpl } {
+        pub inline fn getShard(self: *Self, key: K) struct { u64, *CacheType } {
             const hash_code = hash(K, key);
             return .{ hash_code, &self.shards[hash_code & self.shard_mask] };
         }
@@ -281,6 +220,14 @@ const TestConfig: Config = .{
     .shard_count = 1,
     .policy = .FIFO,
 };
+
+comptime {
+    _ = FIFO;
+    _ = LRU;
+    _ = TinyLFU;
+    _ = SIEVE;
+    _ = S3FIFO;
+}
 
 test "Zigache - string keys" {
     var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
