@@ -68,6 +68,11 @@ pub fn build(b: *std.Build) void {
             .source_file = b.path("examples/01_key_types.zig"),
             .description = "Usage of different key types in the library",
         },
+        .{
+            .name = "ttl_entries",
+            .source_file = b.path("examples/02_ttl_entries.zig"),
+            .description = "Usage of TTL functionality in the library",
+        },
     };
 
     inline for (examples, 1..) |example, i| {

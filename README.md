@@ -136,6 +136,7 @@ To use Zigache in your project, follow these steps:
 Explore the usage scenarios in our examples directory:
 
 - [01 | Key Types](examples/01_key_types.zig)
+- [02 | TTL Entries](examples/02_ttl_entries.zig)
 
 To run an example:
 
