@@ -78,7 +78,7 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
         fn runThreadBenchmark() fn (*ThreadContext) void {
             return struct {
                 fn run(ctx: *ThreadContext) void {
-                    var timer: std.time.Timer = .start() catch {
+                    var timer = std.time.Timer.start() catch {
                         std.debug.print("Failed to start timer\n", .{});
                         return;
                     };
