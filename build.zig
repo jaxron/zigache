@@ -64,13 +64,13 @@ pub fn build(b: *std.Build) void {
     // Examples
     const examples = [_]Example{
         .{
-            .name = "basic",
-            .source_file = b.path("examples/01_basic.zig"),
-            .description = "Basic usage of the library",
+            .name = "key_types",
+            .source_file = b.path("examples/01_key_types.zig"),
+            .description = "Usage of different key types in the library",
         },
     };
 
-    inline for (examples) |example| {
+    inline for (examples, 1..) |example, i| {
         const example_exe = b.addExecutable(.{
             .name = example.name,
             .root_source_file = example.source_file,
@@ -87,7 +87,7 @@ pub fn build(b: *std.Build) void {
         }
         example_cmd.step.dependOn(&install_step.step);
 
-        const example_step = b.step(example.name, example.description);
+        const example_step = b.step(std.fmt.comptimePrint("{:0>2}", .{i}), example.description);
         example_step.dependOn(&example_cmd.step);
     }
 

@@ -135,13 +135,13 @@ To use Zigache in your project, follow these steps:
 
 Explore the usage scenarios in our examples directory:
 
-- [Basic Usage](examples/01_basic.zig)
+- [01 | Key Types](examples/01_key_types.zig)
 
 To run an example:
 
 ```sh
-zig build [example-name]
-zig build basic
+zig build [example-id]
+zig build 01
 ```
 
 # ⚙️ Configuration
