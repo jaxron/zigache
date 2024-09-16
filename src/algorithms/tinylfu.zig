@@ -49,9 +49,10 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
             const protected_size = @max(1, main_size * 8 / 10); // 80% of main cache
             const probationary_size = main_size - protected_size; // 20% of main cache
 
+            const reset_threshold = cache_size * 10;
             return .{
                 .map = try .init(allocator, cache_size, pool_size),
-                .sketch = try .init(allocator, cache_size, 4),
+                .sketch = try .init(allocator, cache_size, 4, reset_threshold),
                 .window_size = window_size,
                 .probationary_size = probationary_size,
                 .protected_size = protected_size,

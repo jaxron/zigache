@@ -11,8 +11,11 @@ pub const CountMinSketch = struct {
     width: usize,
     depth: usize,
 
+    total_count: u64 = 0,
+    reset_threshold: u32,
+
     /// Initialize a new CountMinSketch with the given width and depth.
-    pub fn init(allocator: Allocator, width: usize, depth: usize) !CountMinSketch {
+    pub fn init(allocator: Allocator, width: usize, depth: usize, reset_threshold: u32) !CountMinSketch {
         const counters = try allocator.alloc([]u4, depth);
         errdefer allocator.free(counters);
 
@@ -34,6 +37,7 @@ pub const CountMinSketch = struct {
             .counters = counters,
             .width = width,
             .depth = depth,
+            .reset_threshold = reset_threshold,
         };
     }
 
@@ -47,12 +51,14 @@ pub const CountMinSketch = struct {
 
     /// Increment the count for an item in the sketch.
     pub fn increment(self: *CountMinSketch, hash_code: u64) void {
+        self.total_count += 1;
         for (self.counters, 0..) |row, i| {
             const index: usize = @intCast((hash_code +% i) % self.width);
-            if (row[index] == 15) {
-                self.reset();
-            }
             row[index] +%= 1;
+        }
+
+        if (self.total_count >= self.reset_threshold) {
+            self.reset();
         }
     }
 
@@ -75,6 +81,7 @@ pub const CountMinSketch = struct {
                 cell.* >>= 1;
             }
         }
+        self.total_count >>= 1;
     }
 };
 
