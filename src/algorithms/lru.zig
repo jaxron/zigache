@@ -1,6 +1,5 @@
 const std = @import("std");
 const zigache = @import("../zigache.zig");
-const utils = zigache.utils;
 const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
@@ -103,10 +102,8 @@ pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool, com
 
 const testing = std.testing;
 
-const TestCache = utils.TestCache(LRU(u32, []const u8, false, true));
-
 test "LRU - basic insert and get" {
-    var cache: TestCache = try .init(testing.allocator, 2);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .LRU }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -118,7 +115,7 @@ test "LRU - basic insert and get" {
 }
 
 test "LRU - overwrite existing key" {
-    var cache: TestCache = try .init(testing.allocator, 2);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .LRU }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -129,7 +126,7 @@ test "LRU - overwrite existing key" {
 }
 
 test "LRU - remove key" {
-    var cache: TestCache = try .init(testing.allocator, 1);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .LRU }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -143,7 +140,7 @@ test "LRU - remove key" {
 }
 
 test "LRU - eviction" {
-    var cache: TestCache = try .init(testing.allocator, 4);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 4, .policy = .LRU }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -170,13 +167,13 @@ test "LRU - eviction" {
 }
 
 test "LRU - TTL functionality" {
-    var cache: TestCache = try .init(testing.allocator, 1);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .LRU }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.setTTL(1, "value1", 1); // 1ms TTL
+    try cache.setWithTTL(1, "value1", 1); // 1ms TTL
     std.time.sleep(2 * std.time.ns_per_ms);
     try testing.expect(cache.get(1) == null);
 
-    try cache.setTTL(2, "value2", 1000); // 1s TTL
+    try cache.setWithTTL(2, "value2", 1000); // 1s TTL
     try testing.expect(cache.get(2) != null);
 }

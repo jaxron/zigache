@@ -1,4 +1,6 @@
 const std = @import("std");
+const Wyhash = std.hash.Wyhash;
+const Allocator = std.mem.Allocator;
 
 pub const FIFO = @import("algorithms/fifo.zig").FIFO;
 pub const LRU = @import("algorithms/lru.zig").LRU;
@@ -11,8 +13,6 @@ pub const DoublyLinkedList = @import("structures/dbl.zig").DoublyLinkedList;
 pub const Map = @import("structures/map.zig").Map;
 pub const Node = @import("structures/node.zig").Node;
 pub const Pool = @import("structures/pool.zig").Pool;
-
-pub const utils = @import("utils/utils.zig");
 
 pub fn main() !void {}
 
@@ -254,10 +254,24 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
         /// Determines which shard a given key belongs to based on its hash.
         /// This method ensures even distribution of items across shards for load balancing.
         pub fn getShard(self: *Self, key: K) struct { u64, *CacheImpl } {
-            const hash_code = utils.hash(K, key);
+            const hash_code = hash(K, key);
             return .{ hash_code, &self.shards[hash_code & self.shard_mask] };
         }
     };
+}
+
+/// Compute a hash for the given key.
+pub fn hash(comptime K: type, key: K) u64 {
+    if (K == []const u8) {
+        return Wyhash.hash(0, key);
+    }
+    if (std.meta.hasUniqueRepresentation(K)) {
+        return Wyhash.hash(0, std.mem.asBytes(&key));
+    }
+
+    var hasher = Wyhash.init(0);
+    std.hash.autoHash(&hasher, key);
+    return hasher.final();
 }
 
 const testing = std.testing;

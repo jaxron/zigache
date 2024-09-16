@@ -1,6 +1,5 @@
 const std = @import("std");
 const zigache = @import("../zigache.zig");
-const utils = zigache.utils;
 const assert = std.debug.assert;
 
 const CountMinSketch = zigache.CountMinSketch;
@@ -46,9 +45,9 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
 
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             const window_size = @max(1, cache_size * 1 / 100); // 1% window cache
-            const main_size = cache_size - window_size;
+            const main_size = @max(2, cache_size - window_size);
             const protected_size = @max(1, main_size * 8 / 10); // 80% of main cache
-            const probationary_size = @max(1, main_size - protected_size); // 20% of main cache
+            const probationary_size = main_size - protected_size; // 20% of main cache
 
             return .{
                 .map = try .init(allocator, cache_size, pool_size),
@@ -173,8 +172,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
             if (self.probationary.len >= self.probationary_size) {
                 const victim = self.probationary.first.?;
                 // Use TinyLFU sketch to decide whether to admit the candidate
-                const victim_hash = utils.hash(K, victim.key);
-                const candidate_hash = utils.hash(K, candidate.key);
+                const victim_hash = zigache.hash(K, victim.key);
+                const candidate_hash = zigache.hash(K, candidate.key);
                 if (self.sketch.estimate(victim_hash) > self.sketch.estimate(candidate_hash)) {
                     assert(self.map.remove(candidate.key, candidate_hash) != null);
                     self.map.pool.release(candidate);
@@ -195,10 +194,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime thread_safety: bool,
 
 const testing = std.testing;
 
-const TestCache = utils.TestCache(TinyLFU(u32, []const u8, false, true));
-
 test "TinyLFU - basic insert and get" {
-    var cache: TestCache = try .init(testing.allocator, 10);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .TinyLFU }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -209,7 +206,7 @@ test "TinyLFU - basic insert and get" {
 }
 
 test "TinyLFU - overwrite existing key" {
-    var cache: TestCache = try .init(testing.allocator, 10);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .TinyLFU }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -220,7 +217,7 @@ test "TinyLFU - overwrite existing key" {
 }
 
 test "TinyLFU - remove key" {
-    var cache: TestCache = try .init(testing.allocator, 5);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .TinyLFU }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -234,7 +231,7 @@ test "TinyLFU - remove key" {
 }
 
 test "TinyLFU - eviction and promotion" {
-    var cache: TestCache = try .init(testing.allocator, 5); // Total size: 5 (window: 1, probationary: 1, protected: 3)
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 5, .policy = .TinyLFU }) = try .init(testing.allocator); // Total size: 5 (window: 1, probationary: 1, protected: 3)
     defer cache.deinit();
 
     // Fill the cache
@@ -265,13 +262,13 @@ test "TinyLFU - eviction and promotion" {
 }
 
 test "TinyLFU - TTL functionality" {
-    var cache: TestCache = try .init(testing.allocator, 5);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .TinyLFU }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.setTTL(1, "value1", 1); // 1ms TTL
+    try cache.setWithTTL(1, "value1", 1); // 1ms TTL
     std.time.sleep(2 * std.time.ns_per_ms);
     try testing.expect(cache.get(1) == null);
 
-    try cache.setTTL(2, "value2", 1000); // 1s TTL
+    try cache.setWithTTL(2, "value2", 1000); // 1s TTL
     try testing.expect(cache.get(2) != null);
 }

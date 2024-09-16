@@ -1,6 +1,6 @@
 const std = @import("std");
 const zigache = @import("../zigache.zig");
-const utils = zigache.utils;
+const hash = zigache.hash;
 const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
@@ -114,7 +114,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         /// The node is not released back to the pool, allowing the caller to reuse it.
         /// Returns the node if it was removed, or null if not found.
         pub fn remove(self: *Self, key: K, hash_code: ?u64) ?*Node {
-            const new_ctx = HashContext.init(hash_code orelse utils.hash(K, key));
+            const new_ctx = HashContext.init(hash_code orelse hash(K, key));
             const result = self.map.fetchSwapRemoveAdapted(key, new_ctx);
 
             // NOTE: We don't release the node back to the pool here because
@@ -164,7 +164,7 @@ test "Map - set and get" {
     defer map.deinit();
 
     const key = "key1";
-    const hash_code = utils.hash([]const u8, key);
+    const hash_code = hash([]const u8, key);
 
     // Insert a new entry
     {
@@ -188,7 +188,7 @@ test "Map - remove" {
     defer map.deinit();
 
     const key = "key1";
-    const hash_code = utils.hash([]const u8, key);
+    const hash_code = hash([]const u8, key);
 
     _ = try map.set(key, hash_code);
 
@@ -207,8 +207,8 @@ test "Map - contains" {
 
     const key1 = "key1";
     const key2 = "key2";
-    const hash_code1 = utils.hash([]const u8, key1);
-    const hash_code2 = utils.hash([]const u8, key2);
+    const hash_code1 = hash([]const u8, key1);
+    const hash_code2 = hash([]const u8, key2);
 
     _ = try map.set(key1, hash_code1);
     _ = try map.set(key2, hash_code2);
@@ -226,7 +226,7 @@ test "Map - checkTTL" {
     defer map.deinit();
 
     const key = "key1";
-    const hash_code = utils.hash([]const u8, key);
+    const hash_code = hash([]const u8, key);
 
     const node, _ = try map.set(key, hash_code);
     node.* = .{
@@ -248,7 +248,7 @@ test "Map - update existing entry" {
     defer map.deinit();
 
     const key = "key1";
-    const hash_code = utils.hash([]const u8, key);
+    const hash_code = hash([]const u8, key);
 
     // First insertion
     {
