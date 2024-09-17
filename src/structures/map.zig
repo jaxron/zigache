@@ -7,9 +7,9 @@ const Allocator = std.mem.Allocator;
 
 /// Map is a generic key-value store that supports different types of keys and nodes.
 /// It uses a hash map for fast lookups and a node pool for efficient memory management.
-pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
+pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl_enabled: bool) type {
     return struct {
-        const Node = zigache.Node(K, V, Data);
+        const Node = zigache.Node(K, V, Data, ttl_enabled);
         const Pool = zigache.Pool(Node);
 
         /// Uses StringHashMap for string keys and AutoHashMap for other types.
@@ -187,7 +187,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
 
 const testing = std.testing;
 
-const TestMap = Map([]const u8, u32, void);
+const TestMap = Map([]const u8, u32, void, true);
 
 test "Map - init and deinit" {
     var map: TestMap = try .init(testing.allocator, 100, 10);

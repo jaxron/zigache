@@ -9,8 +9,8 @@ const Allocator = std.mem.Allocator;
 /// which is at the front of the queue, is evicted to make room for the new item.
 pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
     return struct {
-        const Map = zigache.Map(K, V, void);
-        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void);
+        const Map = zigache.Map(K, V, void, ttl_enabled);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,

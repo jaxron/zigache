@@ -88,7 +88,7 @@ pub fn Pool(comptime Node: type) type {
 
 const testing = std.testing;
 
-const TestNode = zigache.Node(u32, u32, void);
+const TestNode = zigache.Node(u32, u32, void, false);
 
 test "Pool - init and deinit" {
     var pool: Pool(TestNode) = try .init(testing.allocator, 10);

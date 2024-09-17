@@ -68,7 +68,8 @@ pub const Config = struct {
     /// that require the  invalidation of stale entries.
     ///
     /// Disabling this option when TTL is not used will improve performance by
-    /// removing unnecessary expiration checks during cache operations.
+    /// removing unnecessary expiration checks during cache operations. It also
+    /// reduces memory usage as the TTL metadata is not stored for each entry.
     ///
     /// Default is false for performance, but can be set to true you use TTL.
     /// A compile-time error will be raised if TTL is disabled but TTL operations

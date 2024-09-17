@@ -6,9 +6,9 @@ const assert = std.debug.assert;
 /// The implementation uses asserts to check for impossible cases, which
 /// helps catch bugs and invalid states during development and testing.
 /// All operations have O(1) time complexity, except for `clear()` which is O(n).
-pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type) type {
+pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type, comptime ttl_enabled: bool) type {
     return struct {
-        const Node = zigache.Node(K, V, Data);
+        const Node = zigache.Node(K, V, Data, ttl_enabled);
 
         pub const empty: Self = .{
             .first = null,
@@ -164,8 +164,8 @@ pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type)
 
 const testing = std.testing;
 
-const TestList = DoublyLinkedList(u32, u32, void);
-const TestNode = zigache.Node(u32, u32, void);
+const TestList = DoublyLinkedList(u32, u32, void, false);
+const TestNode = zigache.Node(u32, u32, void, false);
 
 fn initTestNode(value: u32) TestNode {
     return .{
@@ -173,7 +173,7 @@ fn initTestNode(value: u32) TestNode {
         .value = value,
         .prev = null,
         .next = null,
-        .expiry = null,
+        .expiry = {},
         .data = {},
     };
 }
