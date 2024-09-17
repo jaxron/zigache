@@ -12,12 +12,26 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         const Node = zigache.Node(K, V, Data);
         const Pool = zigache.Pool(Node);
 
-        /// Uses StringArrayHashMapUnmanaged for string keys,
-        /// and AutoArrayHashMapUnmanaged for other types.
+        /// Uses StringHashMap for string keys and AutoHashMap for other types.
+        ///
+        /// `HashMap` is chosen over `ArrayHashMap` for its overall better performance,
+        /// especially at larger cache sizes. While `HashMap` generally has faster
+        /// lookup, insert, and delete operations, it does incur some overhead from
+        /// rehashing to clean up tombstones after excessive deletes.
+        ///
+        /// At smaller cache sizes, `HashMap` might perform slightly worse due
+        /// to the rehashing overhead. However, as cache size increases, `HashMap`'s
+        /// performance advantages become more noticeable, outweighing the occasional
+        /// rehashing cost and outperforming `ArrayHashMap`.
+        ///
+        /// The `checkAndRehash` method is used to mitigate the impact of tombstones,
+        /// maintaining good performance even under heavy delete scenarios. Although
+        /// this design choice is not the best, it works well across a wide range of
+        /// cache sizes, particularly larger caches.
         const HashMapType = if (K == []const u8)
-            std.StringArrayHashMapUnmanaged(*Node)
+            std.StringHashMap(*Node)
         else
-            std.AutoArrayHashMapUnmanaged(K, *Node);
+            std.AutoHashMap(K, *Node);
 
         /// A context struct that provides hash and equality functions for hashmap.
         const HashContext = struct {
@@ -29,31 +43,31 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
             }
 
             /// Return the pre-computed hash code.
-            pub fn hash(self: HashContext, _: K) u32 {
-                return @truncate(self.hash_code);
+            pub fn hash(self: HashContext, _: K) u64 {
+                return self.hash_code;
             }
 
             /// Check equality of two keys.
-            pub fn eql(_: HashContext, a: K, b: K, _: usize) bool {
+            pub fn eql(_: HashContext, a: K, b: K) bool {
                 return if (K == []const u8) std.mem.eql(u8, a, b) else std.meta.eql(a, b);
             }
         };
 
-        allocator: std.mem.Allocator,
-        map: HashMapType = .empty,
+        map: HashMapType,
         pool: Pool,
         capacity: usize,
+        tombstones: usize = 0,
 
         const Self = @This();
 
         /// Initializes a new Map with the specified capacity and pre-allocation size.
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             var self = Self{
-                .allocator = allocator,
+                .map = .init(allocator),
                 .pool = try .init(allocator, pool_size),
                 .capacity = cache_size,
             };
-            try self.map.ensureTotalCapacity(allocator, pool_size);
+            try self.map.ensureTotalCapacity(pool_size);
 
             return self;
         }
@@ -65,7 +79,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
                 self.pool.release(entry.value_ptr.*);
             }
             self.pool.deinit();
-            self.map.deinit(self.allocator);
+            self.map.deinit();
         }
 
         /// Returns true if a key exists in the map.
@@ -89,6 +103,8 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         /// - A pointer to the Node (either newly created or existing)
         /// - A boolean indicating whether an existing entry was returned (true) or a new one was created (false)
         pub fn set(self: *Self, key: K, hash_code: u64) !struct { *Node, bool } {
+            self.checkAndRehash();
+
             // We only use a single `getOrPutAdapted` call here for a performance improvement
             // as compared to a previous implementation where we used separate `getAdapted`
             // and `getOrPutAdapted` calls.
@@ -100,8 +116,10 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
             // On the other hand, if we did the eviction before acquiring a node, there's a chance
             // that the node already exists and we evict a different node, which would be unnecessary.
             // This could also affect the hit rate of the cache, which is not desirable.
-            const gop = try self.map.getOrPutAdapted(self.allocator, key, HashContext.init(hash_code));
+            const gop = try self.map.getOrPutAdapted(key, HashContext.init(hash_code));
             if (!gop.found_existing) {
+                assert(self.capacity + 1 >= self.map.count());
+
                 const node = try self.pool.acquire();
                 gop.key_ptr.* = key;
                 gop.value_ptr.* = node;
@@ -114,14 +132,19 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
         /// The node is not released back to the pool, allowing the caller to reuse it.
         /// Returns the node if it was removed, or null if not found.
         pub fn remove(self: *Self, key: K, hash_code: ?u64) ?*Node {
-            const new_ctx = HashContext.init(hash_code orelse hash(K, key));
-            const result = self.map.fetchSwapRemoveAdapted(key, new_ctx);
+            self.checkAndRehash();
 
-            // NOTE: We don't release the node back to the pool here because
-            // there's a possibility it might be destroyed and the caller might
-            // want to reuse it. For instance, the node might need to be removed
-            // from a list or processed in some way.
-            return if (result) |kv| kv.value else null;
+            const new_ctx = HashContext.init(hash_code orelse hash(K, key));
+            const result = self.map.fetchRemoveAdapted(key, new_ctx);
+
+            if (result) |kv| {
+                self.tombstones += 1;
+                // NOTE: We don't release the node back to the pool here because
+                // there's a possibility it might be destroyed and the caller might
+                // want to reuse it. For instance, the node might need to be removed
+                // from a list or processed in some way.
+                return kv.value;
+            } else return null;
         }
 
         /// Checks if a node has expired based on its TTL (Time-To-Live).
@@ -134,7 +157,6 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
                 const now = std.time.milliTimestamp();
                 if (now >= expiry) {
                     const expired_node = self.remove(node.key, hash_code);
-                    assert(expired_node != null);
                     assert(expired_node == node);
 
                     return true;
@@ -143,6 +165,22 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type) type {
             // If there's no expiration set (null) or the expiry time
             // hasn't been reached, the node is still valid.
             return false;
+        }
+
+        /// Rehash when tombstones reach 25% of the map's capacity. It's frequent enough
+        /// to prevent significant performance degradation, and not so frequent that
+        /// we waste time on unnecessary rehashes.
+        ///
+        /// This approach helps mitigate the impact of tombstones in delete-heavy scenarios.
+        /// By rehashing, we're actively maintaining the hash table's performance, ensuring
+        /// that operations like lookups remain efficient even as the table grows and changes.
+        ///
+        /// For more information, view Zig's issue #17851.
+        inline fn checkAndRehash(self: *Self) void {
+            if (self.tombstones >= self.capacity / 4) {
+                self.map.rehash();
+                self.tombstones = 0;
+            }
         }
     };
 }
