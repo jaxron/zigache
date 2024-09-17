@@ -26,6 +26,7 @@ pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) ty
             var run_time: u64 = 0;
             var hits: u64 = 0;
             var misses: u64 = 0;
+            var last_progress_time: u64 = 0;
 
             var timer: std.time.Timer = try .start();
             while (true) {
@@ -49,24 +50,32 @@ pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) ty
                 const op_time = timer.read() - op_start_time;
                 run_time += op_time;
 
-                // Print progress at regular intervals
-                if ((hits + misses) % 1000 == 0) {
+                // Print progress at regular 10ms intervals
+                if (run_time - last_progress_time >= 10 * std.time.ns_per_ms) {
+                    const total_ops = hits + misses;
+                    const hit_rate = @as(f64, @floatFromInt(hits)) / @as(f64, @floatFromInt(total_ops)) * 100.0;
+                    const ops_per_second = @as(f64, @floatFromInt(total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(run_time));
+                    const ns_per_op = @as(f64, @floatFromInt(run_time)) / @as(f64, @floatFromInt(total_ops));
+
                     const progress = switch (opts.stop_condition) {
                         .duration => |ms| blk: {
                             const elapsed_ns = @as(f64, @floatFromInt(run_time));
                             const duration_ns = @as(f64, @floatFromInt(ms)) * std.time.ns_per_ms;
                             break :blk (elapsed_ns / duration_ns) * 100.0;
                         },
-                        .operations => |max_ops| @as(f64, @floatFromInt(hits + misses)) / @as(f64, @floatFromInt(max_ops)) * 100.0,
+                        .operations => |max_ops| @as(f64, @floatFromInt(total_ops)) / @as(f64, @floatFromInt(max_ops)) * 100.0,
                     };
 
-                    try stdout.print("\r{s} - {d:.2}% complete | Hits: {d} | Misses: {d} | Total Ops: {d}", .{
+                    try stdout.print("\r{s} | {d:>6.2}% | Hit Rate: {d:>5.2}% | Ops/s: {d:>9.2} | ns/op: {d:>7.2}{s}", .{
                         @tagName(policy),
                         progress,
-                        hits,
-                        misses,
-                        hits + misses,
+                        hit_rate,
+                        ops_per_second,
+                        ns_per_op,
+                        " " ** 20, // Padding to ensure clean overwrite
                     });
+
+                    last_progress_time = run_time;
                 }
             }
 

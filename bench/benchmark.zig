@@ -11,6 +11,15 @@ const BenchmarkResult = utils.BenchmarkResult;
 const Config = utils.Config;
 const ExecutionMode = utils.ExecutionMode;
 
+pub const TraceBenchmarkResult = struct {
+    cache_size: u32,
+    fifo: BenchmarkResult,
+    lru: BenchmarkResult,
+    tinylfu: BenchmarkResult,
+    sieve: BenchmarkResult,
+    s3fifo: BenchmarkResult,
+};
+
 pub fn Benchmark(comptime config: Config) type {
     return struct {
         allocator: Allocator,
@@ -21,32 +30,24 @@ pub fn Benchmark(comptime config: Config) type {
             return .{ .allocator = allocator };
         }
 
-        pub fn run(self: *Self) !void {
+        pub fn runNormal(self: *Self) !void {
             // Generate keys for the benchmark
             const keys = try self.generateKeys(config.num_keys, config.zipf);
             defer self.allocator.free(keys);
 
             // Run benchmarks based on the execution mode
-            switch (config.execution_mode) {
-                .single => {
-                    try printBenchmarkHeader(false);
-                    try self.runBenchmarks(single_threaded.SingleThreaded, keys);
-                },
-                .multi => {
-                    try printBenchmarkHeader(true);
-                    try self.runBenchmarks(multi_threaded.MultiThreaded, keys);
-                },
-                .both => {
-                    try printBenchmarkHeader(false);
-                    try self.runBenchmarks(single_threaded.SingleThreaded, keys);
+            if (config.execution_mode == .single or config.execution_mode == .both) {
+                try printBenchmarkHeader(false);
+                try self.runNormalBenchmarks(single_threaded.SingleThreaded, keys);
+            }
 
-                    try printBenchmarkHeader(true);
-                    try self.runBenchmarks(multi_threaded.MultiThreaded, keys);
-                },
+            if (config.execution_mode == .multi or config.execution_mode == .both) {
+                try printBenchmarkHeader(true);
+                try self.runNormalBenchmarks(multi_threaded.MultiThreaded, keys);
             }
         }
 
-        fn runBenchmarks(self: *Self, comptime BenchType: fn (comptime Config, comptime EvictionPolicy) type, keys: []const utils.Sample) !void {
+        fn runNormalBenchmarks(self: *Self, comptime BenchType: fn (comptime Config, comptime EvictionPolicy) type, keys: []const utils.Sample) !void {
             // Get all eviction policies
             const policies = comptime std.meta.tags(EvictionPolicy);
             var results = try self.allocator.alloc(BenchmarkResult, policies.len);
@@ -60,6 +61,34 @@ pub fn Benchmark(comptime config: Config) type {
             // Print results
             try std.io.getStdOut().writer().print("\r", .{});
             try utils.printResults(self.allocator, results);
+        }
+
+        pub fn runTrace(self: *Self) !TraceBenchmarkResult {
+            const keys = try self.generateKeys(config.num_keys, config.zipf);
+            defer self.allocator.free(keys);
+
+            if (config.execution_mode == .single) {
+                try printBenchmarkHeader(false);
+                return self.runTraceBenchmarks(single_threaded.SingleThreaded, keys);
+            }
+
+            if (config.execution_mode == .multi) {
+                try printBenchmarkHeader(true);
+                return self.runTraceBenchmarks(multi_threaded.MultiThreaded, keys);
+            }
+
+            return error.ExecutionModeNotSpecific;
+        }
+
+        fn runTraceBenchmarks(self: *Self, comptime BenchType: fn (comptime Config, comptime EvictionPolicy) type, keys: []const utils.Sample) !TraceBenchmarkResult {
+            return .{
+                .cache_size = config.cache_size,
+                .fifo = try BenchType(config, .FIFO).bench(self.allocator, keys),
+                .lru = try BenchType(config, .LRU).bench(self.allocator, keys),
+                .tinylfu = try BenchType(config, .TinyLFU).bench(self.allocator, keys),
+                .sieve = try BenchType(config, .SIEVE).bench(self.allocator, keys),
+                .s3fifo = try BenchType(config, .S3FIFO).bench(self.allocator, keys),
+            };
         }
 
         fn generateKeys(self: *Self, num_keys: u32, s: f64) ![]utils.Sample {
@@ -87,7 +116,7 @@ pub fn Benchmark(comptime config: Config) type {
             const stdout = std.io.getStdOut().writer();
 
             // Print required configuration
-            try stdout.print("{s}: ", .{if (is_multi) "Multi Threaded" else "Single Threaded"});
+            try stdout.print("\r{s}: ", .{if (is_multi) "Multi Threaded" else "Single Threaded"});
             switch (config.stop_condition) {
                 .duration => |ms| try stdout.print("duration={d:.2}s ", .{@as(f64, @floatFromInt(ms)) / 1000}),
                 .operations => |ops| try stdout.print("operations={d} ", .{ops}),
@@ -99,7 +128,7 @@ pub fn Benchmark(comptime config: Config) type {
                 try stdout.print(" shards={d} threads={d}", .{ config.shard_count, config.num_threads });
             }
 
-            try stdout.print("\n", .{});
+            try stdout.print("{s}\n", .{" " ** 10}); // Padding to ensure clean overwrite
         }
     };
 }

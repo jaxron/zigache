@@ -55,7 +55,7 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
             }
 
             // Aggregate and return results
-            return aggregateResults(stdout, contexts, &gpa.total_requested_bytes);
+            return aggregateResults(contexts, &gpa.total_requested_bytes);
         }
 
         fn initThreadContexts(allocator: std.mem.Allocator, keys: []const utils.Sample, cache: *Cache) ![]ThreadContext {
@@ -111,9 +111,14 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
             while (true) {
                 var total_ops: u64 = 0;
                 var total_run_time: u64 = 0;
+                var total_hits: u64 = 0;
+                var total_misses: u64 = 0;
+
                 for (contexts.*) |ctx| {
                     total_ops += ctx.hits + ctx.misses;
                     total_run_time += ctx.run_time;
+                    total_hits += ctx.hits;
+                    total_misses += ctx.misses;
                 }
 
                 switch (opts.stop_condition) {
@@ -121,34 +126,29 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
                     .operations => |max_ops| if (total_ops >= max_ops) break,
                 }
 
-                try printProgress(stdout, contexts, total_ops, total_run_time);
+                const hit_rate = @as(f64, @floatFromInt(total_hits)) / @as(f64, @floatFromInt(total_ops)) * 100.0;
+                const ops_per_second = @as(f64, @floatFromInt(total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(total_run_time));
+                const ns_per_op = @as(f64, @floatFromInt(total_run_time)) / @as(f64, @floatFromInt(total_ops));
+
+                const progress = switch (opts.stop_condition) {
+                    .duration => |ms| @as(f64, @floatFromInt(total_run_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)) * 100.0,
+                    .operations => |max_ops| @as(f64, @floatFromInt(total_ops)) / @as(f64, @floatFromInt(max_ops)) * 100.0,
+                };
+
+                try stdout.print("\r{s} | {d:>6.2}% | Hit Rate: {d:>5.2}% | Ops/s: {d:>9.2} | ns/op: {d:>7.2}{s}", .{
+                    @tagName(policy),
+                    progress,
+                    hit_rate,
+                    ops_per_second,
+                    ns_per_op,
+                    " " ** 20, // Padding to ensure clean overwrite
+                });
+
                 std.time.sleep(10 * std.time.ns_per_ms);
             }
         }
 
-        fn printProgress(stdout: std.fs.File.Writer, contexts: *[]ThreadContext, total_ops: u64, total_run_time: u64) !void {
-            var total_hits: u64 = 0;
-            var total_misses: u64 = 0;
-            for (contexts.*) |ctx| {
-                total_hits += ctx.hits;
-                total_misses += ctx.misses;
-            }
-
-            const progress = switch (opts.stop_condition) {
-                .duration => |ms| @as(f64, @floatFromInt(total_run_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)) * 100.0,
-                .operations => |max_ops| @as(f64, @floatFromInt(total_ops)) / @as(f64, @floatFromInt(max_ops)) * 100.0,
-            };
-
-            try stdout.print("\r{s} - {d:.2}% complete | Hits: {d} | Misses: {d} | Total Ops: {d}", .{
-                @tagName(policy),
-                progress,
-                total_hits,
-                total_misses,
-                total_ops,
-            });
-        }
-
-        fn aggregateResults(stdout: std.fs.File.Writer, contexts: []const ThreadContext, bytes: *usize) !BenchmarkResult {
+        fn aggregateResults(contexts: []const ThreadContext, bytes: *usize) !BenchmarkResult {
             var total_run_time: u64 = 0;
             var total_hits: u64 = 0;
             var total_misses: u64 = 0;
@@ -157,8 +157,6 @@ pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) typ
                 total_hits += ctx.hits;
                 total_misses += ctx.misses;
             }
-
-            try stdout.print("\r{s} completed", .{@tagName(policy)});
 
             return utils.parseResults(policy, total_run_time, bytes.*, total_hits, total_misses);
         }

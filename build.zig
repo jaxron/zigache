@@ -31,6 +31,7 @@ pub fn build(b: *std.Build) void {
 
     // Run Benchmark
     const options = b.addOptions();
+    options.addOption(?bool, "trace", b.option(bool, "trace", "Run trace benchmarks | Default: false"));
     options.addOption(?[]const u8, "mode", b.option([]const u8, "mode", "Set the benchmark mode | Default: single"));
     options.addOption(?u32, "cache_size", b.option(u32, "cache-size", "Set the total cache size | Default: 10_000"));
     options.addOption(?u32, "pool_size", b.option(u32, "pool-size", "Set the number of nodes to pre-allocate | Default: same as cache size"));
