@@ -6,7 +6,6 @@ const EvictionPolicy = zigache.Config.EvictionPolicy;
 pub const ExecutionMode = enum {
     single,
     multi,
-    both,
 };
 
 pub const StopCondition = union(enum) {
