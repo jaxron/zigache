@@ -2,11 +2,11 @@ const std = @import("std");
 const zigache = @import("zigache");
 const utils = @import("utils.zig");
 
-const EvictionPolicy = zigache.Config.EvictionPolicy;
+const PolicyConfig = zigache.Config.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
 const Config = utils.Config;
 
-pub fn MultiThreaded(comptime opts: Config, comptime policy: EvictionPolicy) type {
+pub fn MultiThreaded(comptime opts: Config, comptime policy: PolicyConfig) type {
     return struct {
         const Cache = zigache.Cache(u64, u64, .{
             .cache_size = opts.cache_size,

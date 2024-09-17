@@ -2,6 +2,7 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
+const Config = zigache.Config;
 const Allocator = std.mem.Allocator;
 
 /// S3FIFO is an advanced FIFO-based caching policy that uses three segments:
@@ -12,7 +13,9 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://s3fifo.com/
-pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
+pub fn S3FIFO(comptime K: type, comptime V: type, comptime config: Config) type {
+    const thread_safety = config.thread_safety;
+    const ttl_enabled = config.ttl_enabled;
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
@@ -44,7 +47,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, 
 
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             // Allocate 10% of total size to small queue, and split the rest between main and ghost
-            const small_size = @max(1, cache_size / 10);
+            const small_size = @max(1, cache_size * config.policy.S3FIFO.small_size_percent / 100);
             const other_size = @max(1, (cache_size - small_size) / 2);
 
             return .{
@@ -205,7 +208,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, 
 const testing = std.testing;
 
 test "S3FIFO - basic insert and get" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .S3FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -216,7 +219,7 @@ test "S3FIFO - basic insert and get" {
 }
 
 test "S3FIFO - overwrite existing key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .S3FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -227,7 +230,7 @@ test "S3FIFO - overwrite existing key" {
 }
 
 test "S3FIFO - remove key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .S3FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.set(1, "value1");
@@ -241,7 +244,7 @@ test "S3FIFO - remove key" {
 }
 
 test "S3FIFO - eviction and promotion" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 5, .policy = .S3FIFO }) = try .init(testing.allocator); // Total size: 5 (small: 1, main: 2, ghost: 2)
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 5, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator); // Total size: 5 (small: 1, main: 2, ghost: 2)
     defer cache.deinit();
 
     // Fill the cache
@@ -270,7 +273,7 @@ test "S3FIFO - eviction and promotion" {
 }
 
 test "S3FIFO - TTL functionality" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .S3FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
     try cache.setWithTTL(1, "value1", 1); // 1ms TTL

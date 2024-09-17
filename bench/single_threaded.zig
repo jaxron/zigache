@@ -1,11 +1,11 @@
 const std = @import("std");
 const zigache = @import("zigache");
 const utils = @import("utils.zig");
-const EvictionPolicy = zigache.Config.EvictionPolicy;
+const PolicyConfig = zigache.Config.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
 const Config = utils.Config;
 
-pub fn SingleThreaded(comptime opts: Config, comptime policy: EvictionPolicy) type {
+pub fn SingleThreaded(comptime opts: Config, comptime policy: PolicyConfig) type {
     return struct {
         pub fn bench(_: std.mem.Allocator, keys: []const utils.Sample) !BenchmarkResult {
             var gpa: std.heap.GeneralPurposeAllocator(.{ .enable_memory_limit = true }) = .init;

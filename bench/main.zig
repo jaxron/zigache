@@ -7,7 +7,7 @@ const multi_threaded = @import("multi_threaded.zig");
 
 const Zipfian = @import("Zipfian.zig");
 const Allocator = std.mem.Allocator;
-const EvictionPolicy = zigache.Config.EvictionPolicy;
+const PolicyConfig = zigache.Config.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
 
 pub const TraceBenchmarkResult = struct {
@@ -110,7 +110,7 @@ pub fn runTrace(allocator: Allocator, keys: []const utils.Sample) !void {
 
 fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []const utils.Sample) ![]BenchmarkResult {
     // Get all eviction policies
-    const policies = comptime std.meta.tags(EvictionPolicy);
+    const policies = comptime std.meta.fields(PolicyConfig);
     var results = try allocator.alloc(BenchmarkResult, policies.len);
 
     // Run benchmarks based on the execution mode
@@ -118,13 +118,15 @@ fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []con
         .single => {
             try printBenchmarkHeader(config);
             inline for (policies, 0..) |policy, i| {
-                results[i] = try single_threaded.SingleThreaded(config, policy).bench(allocator, keys);
+                const policy_config = @unionInit(PolicyConfig, policy.name, .{});
+                results[i] = try single_threaded.SingleThreaded(config, policy_config).bench(allocator, keys);
             }
         },
         .multi => {
             try printBenchmarkHeader(config);
             inline for (policies, 0..) |policy, i| {
-                results[i] = try multi_threaded.MultiThreaded(config, policy).bench(allocator, keys);
+                const policy_config = @unionInit(PolicyConfig, policy.name, .{});
+                results[i] = try multi_threaded.MultiThreaded(config, policy_config).bench(allocator, keys);
             }
         },
     }

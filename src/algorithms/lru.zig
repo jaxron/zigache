@@ -2,13 +2,16 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
+const Config = zigache.Config;
 const Allocator = std.mem.Allocator;
 
 /// LRU is a cache eviction policy based on usage recency. It keeps track of
 /// what items are used and when. When the cache is full, the item that hasn't
 /// been used for the longest time is evicted. This policy is based on the idea
 /// that items that have been used recently are likely to be used again soon.
-pub fn LRU(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
+pub fn LRU(comptime K: type, comptime V: type, comptime config: Config) type {
+    const thread_safety = config.thread_safety;
+    const ttl_enabled = config.ttl_enabled;
     return struct {
         const Map = zigache.Map(K, V, void, ttl_enabled);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);

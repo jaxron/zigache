@@ -2,6 +2,7 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
+const Config = zigache.Config;
 const Allocator = std.mem.Allocator;
 
 /// SIEVE is an simple caching policy designed to balance between recency and
@@ -11,7 +12,9 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://cachemon.github.io/SIEVE-website/
-pub fn SIEVE(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
+pub fn SIEVE(comptime K: type, comptime V: type, comptime config: Config) type {
+    const thread_safety = config.thread_safety;
+    const ttl_enabled = config.ttl_enabled;
     return struct {
         const Data = struct {
             visited: bool,

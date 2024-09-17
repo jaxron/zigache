@@ -2,12 +2,15 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
+const Config = zigache.Config;
 const Allocator = std.mem.Allocator;
 
 /// FIFO is a simple cache eviction policy. In this approach, new items are added
 /// to the back of the queue. When the cache becomes full, the oldest item,
 /// which is at the front of the queue, is evicted to make room for the new item.
-pub fn FIFO(comptime K: type, comptime V: type, comptime thread_safety: bool, comptime ttl_enabled: bool) type {
+pub fn FIFO(comptime K: type, comptime V: type, comptime config: Config) type {
+    const thread_safety = config.thread_safety;
+    const ttl_enabled = config.ttl_enabled;
     return struct {
         const Map = zigache.Map(K, V, void, ttl_enabled);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);

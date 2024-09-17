@@ -1,7 +1,7 @@
 const std = @import("std");
 const zigache = @import("zigache");
 
-const EvictionPolicy = zigache.Config.EvictionPolicy;
+const PolicyConfig = zigache.Config.PolicyConfig;
 
 pub const ExecutionMode = enum {
     single,
@@ -30,7 +30,7 @@ pub const Sample = struct {
 };
 
 pub const BenchmarkResult = struct {
-    policy: EvictionPolicy,
+    policy: PolicyConfig,
     total_ops: u64,
     ns_per_op: f64,
     ops_per_second: f64,
@@ -53,7 +53,7 @@ pub const BenchmarkResult = struct {
     }
 };
 
-pub fn parseResults(policy: EvictionPolicy, run_time: u64, bytes: usize, hits: u64, misses: u64) BenchmarkResult {
+pub fn parseResults(policy: PolicyConfig, run_time: u64, bytes: usize, hits: u64, misses: u64) BenchmarkResult {
     const total_ops = hits + misses;
     const hit_rate = @as(f64, @floatFromInt(hits)) / @as(f64, @floatFromInt(total_ops));
     const ns_per_op = @as(f64, @floatFromInt(run_time)) / @as(f64, @floatFromInt(total_ops));

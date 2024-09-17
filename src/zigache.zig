@@ -76,22 +76,33 @@ pub const Config = struct {
     /// are attempted in the cache.
     ttl_enabled: bool = false,
 
-    /// The eviction policy to use for managing cache entries.
+    /// The policy to use for managing cache entries.
     ///
     /// This field determines the algorithm used to decide which items to remove
     /// when the cache reaches its capacity. Different policies have different
     /// trade-offs in terms of performance, memory usage, and cache hit rate.
     ///
-    /// Choose the policy that best fits your workload characteristics and performance requirements.
-    policy: EvictionPolicy,
+    /// Some policies have configurable parameters. Choose the policy that
+    /// best fits your workload characteristics and performance requirements.
+    policy: PolicyConfig,
 
-    /// EvictionPolicy determines the algorithm used for cache management.
-    pub const EvictionPolicy = enum {
-        FIFO,
-        LRU,
-        TinyLFU,
-        SIEVE,
-        S3FIFO,
+    pub const PolicyConfig = union(enum) {
+        FIFO: struct {},
+        LRU: struct {},
+        TinyLFU: struct {
+            /// Depth of the Count-Min Sketch used for frequency counting.
+            /// A higher value increases accuracy but uses more memory.
+            cms_depth: u32 = 3,
+            /// Size of the admission window as a percentage of the main cache.
+            /// Balances between admitting new items and retaining valuable ones.
+            window_size_percent: u8 = 1,
+        },
+        SIEVE: struct {},
+        S3FIFO: struct {
+            /// Size of the small window as a percentage of the total cache size.
+            /// Affects the balance between recent and frequent items.
+            small_size_percent: u8 = 10,
+        },
     };
 };
 
@@ -100,11 +111,11 @@ pub const Config = struct {
 pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
     return struct {
         const CacheType = switch (config.policy) {
-            .FIFO => FIFO(K, V, config.thread_safety, config.ttl_enabled),
-            .LRU => LRU(K, V, config.thread_safety, config.ttl_enabled),
-            .TinyLFU => TinyLFU(K, V, config.thread_safety, config.ttl_enabled),
-            .SIEVE => SIEVE(K, V, config.thread_safety, config.ttl_enabled),
-            .S3FIFO => S3FIFO(K, V, config.thread_safety, config.ttl_enabled),
+            .FIFO => FIFO(K, V, config),
+            .LRU => LRU(K, V, config),
+            .TinyLFU => TinyLFU(K, V, config),
+            .SIEVE => SIEVE(K, V, config),
+            .S3FIFO => S3FIFO(K, V, config),
         };
 
         allocator: std.mem.Allocator,
