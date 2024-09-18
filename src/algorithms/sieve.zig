@@ -20,10 +20,10 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime config: Config) type {
             visited: bool,
         };
 
-        const Node = zigache.Node(K, V, Data, ttl_enabled);
         const Map = zigache.Map(K, V, Data, ttl_enabled);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
+        const Node = Map.Node;
 
         map: Map,
         list: DoublyLinkedList = .empty,

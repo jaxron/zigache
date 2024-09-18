@@ -27,10 +27,10 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime config: Config) type 
             freq: u2,
         };
 
-        const Node = zigache.Node(K, V, Data, ttl_enabled);
         const Map = zigache.Map(K, V, Data, ttl_enabled);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
+        const Node = Map.Node;
 
         map: Map,
         small: DoublyLinkedList = .empty,

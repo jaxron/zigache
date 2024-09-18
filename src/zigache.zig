@@ -11,7 +11,6 @@ pub const S3FIFO = @import("algorithms/s3fifo.zig").S3FIFO;
 pub const CountMinSketch = @import("structures/cms.zig").CountMinSketch;
 pub const DoublyLinkedList = @import("structures/dbl.zig").DoublyLinkedList;
 pub const Map = @import("structures/map.zig").Map;
-pub const Node = @import("structures/node.zig").Node;
 pub const Pool = @import("structures/pool.zig").Pool;
 
 pub fn main() !void {}

@@ -9,7 +9,32 @@ const Allocator = std.mem.Allocator;
 /// It uses a hash map for fast lookups and a node pool for efficient memory management.
 pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl_enabled: bool) type {
     return struct {
-        const Node = zigache.Node(K, V, Data, ttl_enabled);
+        pub const Node = struct {
+            pub const empty = .{
+                .next = null,
+                .prev = null,
+                .key = undefined,
+                .value = undefined,
+                .expiry = if (ttl_enabled) null else {},
+                .data = undefined,
+            };
+
+            prev: ?*Node,
+            next: ?*Node,
+            key: K,
+            value: V,
+            expiry: if (ttl_enabled) ?i64 else void,
+            data: Data,
+
+            pub fn update(self: *Node, key: K, value: V, ttl: ?u64, data: Data) void {
+                self.key = key;
+                self.value = value;
+                self.expiry = if (ttl_enabled)
+                    if (ttl) |t| std.time.milliTimestamp() + @as(i64, @intCast(t)) else null
+                else {};
+                self.data = data;
+            }
+        };
         const Pool = zigache.Pool(Node);
 
         /// Uses StringHashMap for string keys and AutoHashMap for other types.

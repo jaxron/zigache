@@ -88,8 +88,9 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime config: Config) type {
         fn evict(self: *Self) void {
             if (self.list.first) |head| {
                 // FIFO eviction: remove the oldest item (first in the list)
-                assert(self.map.remove(head.key, null) != null);
                 self.list.remove(head);
+
+                assert(self.map.remove(head.key, null) != null);
                 self.map.pool.release(head);
             }
         }
