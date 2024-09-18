@@ -146,18 +146,25 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
             const ops_per_second = @as(f64, @floatFromInt(results.total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(results.total_run_time));
             const ns_per_op = @as(f64, @floatFromInt(results.total_run_time)) / @as(f64, @floatFromInt(results.total_ops));
             const progress = switch (opts.stop_condition) {
-                .duration => |ms| @as(f64, @floatFromInt(results.total_run_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)) * 100.0,
-                .operations => |max_ops| @as(f64, @floatFromInt(results.total_ops)) / @as(f64, @floatFromInt(max_ops)) * 100.0,
+                .duration => |ms| @as(f64, @floatFromInt(results.total_run_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)),
+                .operations => |max_ops| @as(f64, @floatFromInt(results.total_ops)) / @as(f64, @floatFromInt(max_ops)),
             };
 
-            try stdout.print("\r{s} | {d:>6.2}% | Hit Rate: {d:>5.2}% | Ops/s: {d:>9.2} | ns/op: {d:>7.2}{s}", .{
-                @tagName(policy),
-                progress,
+            const bar_width = 30;
+            const filled_width = @as(usize, @intFromFloat(progress * @as(f64, bar_width)));
+            const empty_width = bar_width - filled_width;
+
+            try stdout.print("\r\x1b[2K\x1b[1m{s:<6}\x1b[0m [", .{@tagName(policy)}); // Bold policy name, left-aligned, 6-char field
+            try stdout.print("\x1b[42m", .{}); // Set background color to green
+            try stdout.writeByteNTimes(' ', filled_width);
+            try stdout.print("\x1b[0m", .{}); // Reset color
+            try stdout.writeByteNTimes(' ', empty_width);
+            try stdout.print("] \x1b[1m{d:>5.1}%\x1b[0m | ", .{progress * 100}); // Bold percentage, right-aligned, 5-char field, 1 decimal place
+            try stdout.print("Hit Rate: {d:>5.2}% | ops/s: {d:>9.2} | ns/op: {d:>7.2}", .{
                 hit_rate,
                 ops_per_second,
                 ns_per_op,
-                " " ** 20,
-            });
+            }); // Right-aligned with 2 decimal places
         }
     };
 }

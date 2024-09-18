@@ -160,6 +160,7 @@ pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResu
     }
 
     const stdout = std.io.getStdOut().writer();
+    try stdout.writeAll(" " ** 100 ++ "\r"); // Padding to ensure clean overwrite
 
     try printSeparator(stdout, &col_widths);
     try printRow(stdout, &headers, &col_widths);
