@@ -6,6 +6,13 @@ const PolicyConfig = zigache.Config.PolicyConfig;
 pub const ExecutionMode = enum {
     single,
     multi,
+
+    pub fn format(self: ExecutionMode) []const u8 {
+        return switch (self) {
+            .single => "Single Threaded",
+            .multi => "Multi Threaded",
+        };
+    }
 };
 
 pub const StopCondition = union(enum) {
@@ -160,7 +167,6 @@ pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResu
     }
 
     const stdout = std.io.getStdOut().writer();
-    try stdout.writeAll(" " ** 100 ++ "\r"); // Padding to ensure clean overwrite
 
     try printSeparator(stdout, &col_widths);
     try printRow(stdout, &headers, &col_widths);

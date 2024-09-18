@@ -15,11 +15,9 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // Generate keys for the benchmark
     const keys = try generateKeys(allocator);
     defer allocator.free(keys);
 
-    // Run benchmarks based on the execution mode
     if (opts.trace orelse false)
         try runTrace(allocator, keys)
     else
@@ -27,7 +25,7 @@ pub fn main() !void {
 }
 
 fn generateKeys(allocator: Allocator) ![]utils.Sample {
-    const num_keys = opts.num_keys orelse 1000000;
+    const num_keys = opts.num_keys orelse 1_000_000;
     const s = opts.zipf orelse 1.0;
 
     var zipf_distribution: Zipfian = try .init(num_keys, s);
@@ -50,18 +48,19 @@ fn generateKeys(allocator: Allocator) ![]utils.Sample {
 }
 
 pub fn runNormal(allocator: Allocator, keys: []utils.Sample) !void {
-    // Run normal benchmarks
-    const config = comptime getConfig(opts.cache_size orelse 10000);
+    const config = comptime getConfig(opts.cache_size orelse 10_000);
     const benchmark = try runBenchmark(config, allocator, keys);
     defer allocator.free(benchmark);
 
-    // Print results
-    try std.io.getStdOut().writer().print("\r", .{});
+    const stdout = std.io.getStdOut().writer();
+    try stdout.writeAll("\r");
+    try stdout.writeByteNTimes(' ', 120);
+    try stdout.writeAll("\r");
+
     try utils.printResults(allocator, benchmark);
 }
 
 pub fn runTrace(allocator: Allocator, keys: []utils.Sample) !void {
-    // Run trace benchmarks
     const cache_sizes = comptime utils.generateCacheSizes();
     var results: [cache_sizes.len]TraceBenchmarkResult = undefined;
 
@@ -80,19 +79,16 @@ pub fn runTrace(allocator: Allocator, keys: []utils.Sample) !void {
         };
     }
 
-    // Write results to CSV files
     const execution_mode = comptime if (getExecutionMode() == .multi) "multi" else "single";
     try utils.generateCSVs(execution_mode, &results);
 
-    std.debug.print("\rBenchmark results have been written to CSV files{s}\n", .{" " ** 30}); // Padding to ensure clean overwrite
+    std.debug.print("\rBenchmark results have been written to CSV files{s}\n", .{" " ** 30});
 }
 
 fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []utils.Sample) ![]BenchmarkResult {
-    // Get all eviction policies
     const policies = comptime std.meta.fields(PolicyConfig);
     var results = try allocator.alloc(BenchmarkResult, policies.len);
 
-    // Run benchmarks based on the execution mode
     try printBenchmarkHeader(config);
     inline for (policies, 0..) |policy, i| {
         const policy_config = @unionInit(PolicyConfig, policy.name, .{});
@@ -105,20 +101,31 @@ fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []uti
 fn printBenchmarkHeader(comptime config: utils.Config) !void {
     const stdout = std.io.getStdOut().writer();
 
-    // Print required configuration
-    try stdout.print("\r{s}: ", .{if (config.execution_mode == .multi) "Multi Threaded" else "Single Threaded"});
+    // Clear the line and create some space
+    try stdout.writeAll("\r");
+    try stdout.writeByteNTimes(' ', 150);
+    try stdout.writeAll("\r");
+
+    // Print common configuration
+    try stdout.print("{s}: ", .{config.execution_mode.format()});
     switch (config.stop_condition) {
         .duration => |ms| try stdout.print("duration={d:.2}s ", .{@as(f64, @floatFromInt(ms)) / 1000}),
         .operations => |ops| try stdout.print("operations={d} ", .{ops}),
     }
-    try stdout.print("keys={d} cache-size={d} pool-size={d} zipf={d:.2}", .{ config.num_keys, config.cache_size, config.pool_size orelse config.cache_size, opts.zipf orelse 1.0 });
 
-    // Print additional configuration for multi-threaded benchmarks
+    try stdout.print("keys={d} cache-size={d} pool-size={d} zipf={d:.2}", .{
+        config.num_keys,
+        config.cache_size,
+        config.pool_size orelse config.cache_size,
+        opts.zipf orelse 1.0,
+    });
+
+    // Print multi-threaded specific configuration
     if (config.execution_mode == .multi) {
         try stdout.print(" shards={d} threads={d}", .{ config.shard_count, config.num_threads });
     }
 
-    try stdout.print("{s}\n", .{" " ** 10}); // Padding to ensure clean overwrite
+    try stdout.writeByte('\n');
 }
 
 fn getConfig(cache_size: u32) utils.Config {
