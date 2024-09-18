@@ -53,6 +53,74 @@ pub const BenchmarkResult = struct {
     }
 };
 
+pub const TraceBenchmarkResult = struct {
+    cache_size: u32,
+    fifo: BenchmarkResult,
+    lru: BenchmarkResult,
+    tinylfu: BenchmarkResult,
+    sieve: BenchmarkResult,
+    s3fifo: BenchmarkResult,
+};
+
+pub const BenchmarkMetric = enum {
+    ns_per_op,
+    hit_rate,
+    ops_per_second,
+
+    fn header(self: BenchmarkMetric) []const u8 {
+        return switch (self) {
+            .ns_per_op => "ns/op",
+            .hit_rate => "Hit Rate (%)",
+            .ops_per_second => "ops/s",
+        };
+    }
+};
+
+pub fn generateCSVs(comptime execution_type: []const u8, results: []const TraceBenchmarkResult) !void {
+    try generateCSV("benchmark_nsop_" ++ execution_type ++ ".csv", .ns_per_op, results);
+    try generateCSV("benchmark_hitrate_" ++ execution_type ++ ".csv", .hit_rate, results);
+    try generateCSV("benchmark_opspersecond_" ++ execution_type ++ ".csv", .ops_per_second, results);
+}
+
+pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []const TraceBenchmarkResult) !void {
+    const file = try std.fs.cwd().createFile(filename, .{});
+    defer file.close();
+
+    const writer = file.writer();
+
+    // Write header
+    const header = metric.header();
+    try writer.print("Cache Size,FIFO {s},LRU {s},TinyLFU {s},SIEVE {s},S3FIFO {s}\n", .{
+        header,
+        header,
+        header,
+        header,
+        header,
+    });
+
+    // Write results
+    for (results) |result| {
+        try writer.print("{}", .{result.cache_size});
+        inline for (.{ "fifo", "lru", "tinylfu", "sieve", "s3fifo" }) |policy| {
+            const value = switch (metric) {
+                .ns_per_op => @field(result, policy).ns_per_op,
+                .hit_rate => @field(result, policy).hit_rate * 100,
+                .ops_per_second => @field(result, policy).ops_per_second,
+            };
+            try writer.print(",{d:.2}", .{value});
+        }
+        try writer.writeByte('\n');
+    }
+}
+
+pub fn generateCacheSizes() [20]u32 {
+    var sizes: [20]u32 = undefined;
+    for (0..20) |i| {
+        sizes[i] = (i + 1) * 5000;
+    }
+    return sizes;
+}
+
 pub fn parseResults(policy: PolicyConfig, run_time: u64, bytes: usize, hits: u64, misses: u64) BenchmarkResult {
     const total_ops = hits + misses;
     const hit_rate = @as(f64, @floatFromInt(hits)) / @as(f64, @floatFromInt(total_ops));
@@ -74,7 +142,7 @@ pub fn parseResults(policy: PolicyConfig, run_time: u64, bytes: usize, hits: u64
 pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResult) !void {
     const headers = [_][]const u8{ "Name", "Total Ops", "ns/op", "ops/s", "Hit Rate (%)", "Hits", "Misses", "Memory (MB)" };
 
-    var col_widths: [headers.len]usize = undefined;
+    var col_widths = [_]usize{0} ** headers.len;
     for (headers, 0..) |header, i| {
         col_widths[i] = header.len;
         for (results) |result| {
@@ -103,10 +171,8 @@ pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResu
 
         var fields: [headers.len][]const u8 = undefined;
         var iter = std.mem.splitSequence(u8, formatted, "|");
-        var i: usize = 0;
-        while (iter.next()) |field| : (i += 1) {
-            if (i >= headers.len) break; // Ensure we don't exceed the number of headers
-            fields[i] = field;
+        for (&fields) |*field| {
+            field.* = iter.next() orelse break;
         }
         try printRow(stdout, &fields, &col_widths);
     }
@@ -115,22 +181,18 @@ pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResu
 }
 
 fn printSeparator(writer: anytype, widths: []const usize) !void {
-    for (widths, 0..) |width, i| {
-        if (i == 0) {
-            try writer.writeByteNTimes('-', width + 1);
-        } else {
-            try writer.writeAll("+");
-            try writer.writeByteNTimes('-', width + 2);
-        }
+    for (widths) |width| {
+        try writer.writeAll("+");
+        try writer.writeByteNTimes('-', width + 2);
     }
-    try writer.writeAll("\n");
+    try writer.writeAll("+\n");
 }
 
 fn printRow(writer: anytype, fields: []const []const u8, widths: []const usize) !void {
-    for (fields, 0..) |field, i| {
-        if (i > 0) try writer.writeAll("| ");
+    for (fields, widths) |field, width| {
+        if (@intFromPtr(field.ptr) != @intFromPtr(fields.ptr)) try writer.writeAll("| ");
         try writer.print("{s}", .{field});
-        try writer.writeByteNTimes(' ', widths[i] - field.len + 1);
+        try writer.writeByteNTimes(' ', width - field.len + 1);
     }
-    try writer.writeAll("\n");
+    try writer.writeAll("|\n");
 }
