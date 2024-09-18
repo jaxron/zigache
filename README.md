@@ -1,6 +1,6 @@
 <h1 align="center">
     <picture>
-      <img height="120" alt="Zigache" src="./assets/images/zigache_logo.png">
+      <img alt="Zigache" src="./assets/images/zigache_logo.png" style="min-width: 200px; max-width: 400px; width: 100%;">
     </picture>
   <br>
   <a href="https://github.com/jaxron/zigache/blob/main/LICENSE.md">
@@ -24,7 +24,7 @@
 ---
 
 > [!IMPORTANT]
-> Zigache is currently in **early development** and follows Zig's latest nightly build. Last tested with `0.14.0-dev.1573+4d81e8ee9`.
+> Zigache is currently in **early development** and follows Zig's latest build in the master branch.
 
 # 📚 Table of Contents
 
@@ -32,10 +32,10 @@
 - [⚡️ Quickstart](#%EF%B8%8F-quickstart)
 - [👀 Examples](#-examples)
 - [⚙️ Configuration](#%EF%B8%8F-configuration)
-- [📊 Performance](#-performance)
+- [📊 Benchmarks](#-benchmarks)
 - [🗺️ Roadmap](#%EF%B8%8F-roadmap)
-- [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
+- [❓ FAQ](#-faq)
 
 # 🚀 Features
 
@@ -47,10 +47,11 @@ Zigache offers a rich set of features to designed to meet various caching needs:
   - SIEVE | [SIEVE is Simpler than LRU: an Efficient Turn-Key Eviction Algorithm for Web Caches](https://www.usenix.org/conference/nsdi24/presentation/zhang-yazhuo)
   - LRU | Least Recently Used
   - FIFO | First-In-First-Out
-- **Configurable Cache Size** with pre-allocation options
-- **Time-To-Live (TTL)** support for cache entries
-- **Thread-Safe Operations** for stability in concurrent environments
-- **Sharding Support** for improved performance in concurrent environments
+- **Extensive Configuration Options:**
+  - Configurable cache size with pre-allocation for performance tuning
+  - Ability to fine-tune the eviction policy (e.g., TinyLFU, S3FIFO)
+  - Time-To-Live (TTL) support to expire cache entries
+  - Thread safety and sharding settings for concurrent environments
 - **Heavy Testing and Benchmarking** for stability and performance
 
 # ⚡️ Quickstart
@@ -70,8 +71,8 @@ To use Zigache in your project, follow these steps:
         },
         .dependencies = .{
             .zigache = .{
-                .url = "https://github.com/jaxron/zigache/archive/6f4995142fed9c83598fc2d9cbc38fbe75899095.tar.gz",
-                .hash = "12208aad920f6b0227835013637cff0ba8fdf8a9abfe17ac3b9e3dd350bd5d5c1f36",
+                .url = "https://github.com/jaxron/zigache/archive/41e78a2f7f8cfcce47ad7dccc40be4423de57461.tar.gz",
+                .hash = "122061d51cf73327e469c0a35fe3030208c8db04f58d1e1fce68d16f7d5c8d50524d",
             },
         },
     }
@@ -162,76 +163,93 @@ var cache: Cache([]const u8, []const u8, .{
 
 > For more detailed information, refer to the [full documentation](https://jaxron.me/zigache/).
 
-# 📊 Performance
+# 📊 Benchmarks
 
-This benchmark utilizes a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law) with a parameter of 1.0, run on an Intel® Core™ i7-8700 CPU in Ubuntu 22.04.
+This benchmark uses a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law) with a parameter of 1.0, run on an Intel® Core™ i7-8700 CPU, using commit `41e78a2` of this library.
 
 > [!NOTE]
-> Keep in mind that these results are not conclusive. Performance varies with workload and environment. Some eviction policies may perform better for specific use cases, so it's best to experiment with different parameters.
+> Keep in mind that these results are not conclusive. Performance varies with workload and environment and some eviction policies may perform better for specific use cases. There are many flags to customize the benchmark so it's best to experiment with different parameters. For more details on the available flags, run `zig build -h`.
 
-Benchmark parameters used:
+<details>
+<summary>Single Threaded</summary>
+
+## Benchmark Parameters
 
 ```sh
-zig build bench -Doptimize=ReleaseFast -Dmode=both -Dduration=60000 -Dzipf="1.0" -Dshards=64 -Dthreads=4
+zig build bench -Doptimize=ReleaseFast -Dtrace=true
 ```
 
-For more details on the available flags, run `zig build -h`.
+## Results
 
-## Single-Threaded
+### Hit Rate (%)
 
-```markdown
-Single Threaded: duration=60.00s keys=320000 cache-size=10000 pool-size=10000 zipf=1.00
---------+------------+--------+-------------+--------------+-----------+-----------+-------------
-Name    | Total Ops  | ns/op  | ops/s       | Hit Rate (%) | Hits      | Misses    | Memory (MB) 
---------+------------+--------+-------------+--------------+-----------+-----------+-------------
-FIFO    | 1011924108 | 59.29  | 16865401.79 | 61.47        | 622013224 | 389910884 | 0.82        
-LRU     | 974760215  | 61.55  | 16246003.58 | 65.14        | 634923543 | 339836672 | 0.82        
-TinyLFU | 319355703  | 187.88 | 5322595.05  | 70.81        | 226131076 | 93224627  | 0.93        
-SIEVE   | 1066801149 | 56.24  | 17780019.14 | 72.03        | 768447908 | 298353241 | 0.89        
-S3FIFO  | 938150865  | 63.96  | 15635847.75 | 68.91        | 646522113 | 291628752 | 0.89        
---------+------------+--------+-------------+--------------+-----------+-----------+-------------
-```
+<picture>
+  <img alt="Zigache" src="./assets/images/benchmarks/hit_rate.png">
+</picture>
 
-## Multi-Threaded
+### Average Operation Time (ns/op)
 
-```markdown
-Multi Threaded: duration=60.00s keys=320000 cache-size=10000 pool-size=10000 zipf=1.00 shards=64 threads=4
---------+------------+--------+------------+--------------+-----------+-----------+-------------
-Name    | Total Ops  | ns/op  | ops/s      | Hit Rate (%) | Hits      | Misses    | Memory (MB) 
---------+------------+--------+------------+--------------+-----------+-----------+-------------
-FIFO    | 969530870  | 247.54 | 4039711.93 | 61.40        | 595302615 | 374228255 | 0.84        
-LRU     | 815681027  | 294.23 | 3398670.94 | 65.02        | 530381235 | 285299792 | 0.84        
-TinyLFU | 718285582  | 334.13 | 2992856.58 | 73.26        | 526248962 | 192036620 | 0.96        
-SIEVE   | 1000027550 | 239.99 | 4166781.42 | 74.02        | 740237765 | 259789785 | 0.92        
-S3FIFO  | 1004268540 | 238.98 | 4184452.23 | 69.79        | 700884097 | 303384443 | 0.91        
---------+------------+--------+------------+--------------+-----------+-----------+-------------
-```
+<picture>
+  <img alt="Zigache" src="./assets/images/benchmarks/ns_per_op.png">
+</picture>
 
-### Key Observations
+### Operations per Second (ops/s)
 
-- **FIFO** offers high throughput, especially in single-threaded scenarios, but has a lower hit rate than others.
-- **LRU** performs well but falls behind **SIEVE** and **TinyLFU** in both throughput and hit rate.
-- **TinyLFU** achieves the best hit rate, particularly in multi-threaded scenarios, making it ideal for workloads prioritizing cache efficiency.
-- **SIEVE** strikes the best balance of throughput and hit rate in both single and multi-threaded environments.
-- **S3FIFO** delivers strong multi-threaded throughput while maintaining a solid hit rate.
+<picture>
+  <img alt="Zigache" src="./assets/images/benchmarks/ops_per_sec.png">
+</picture>
+
+</details>
 
 # 🗺️ Roadmap
 
-Zigache is in its early stages. Our current focus is on implementing features, with performance optimizations planned for the future. Here are some things we have planned for the future:
+Zigache is in its early stages. Our main priority is on implementing features, with performance improvements as a secondary priority. Here are some things we have planned for the future:
 
+- [ ] 🧪 Improved benchmarking suite
 - [ ] ⚙️ Runtime-configurable API
 - [ ] 📦 Batch operations support
 - [ ] 📊 Metrics and monitoring
-- [ ] 🧪 Improved benchmarking suite
 - [ ] 🔄 Adaptive system to adjust eviction policies
 - [ ] 🔓 Lock-free data structures
+- [ ] 📚 More extensive examples
 
 > 💡 **We value your input!** Have suggestions for our roadmap? Feel free to open an issue or start a discussion.
-
-# 🤝 Contributing
-
-We welcome contributions to Zigache! Please make sure to update tests as appropriate and adhere to the [Zig Style Guide](https://ziglang.org/documentation/master/#Style-Guide).
 
 # 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md) file for details.
+
+# ❓ FAQ
+
+<details>
+  <summary><b>Is Zigache production-ready?</b></summary>
+  <p>Zigache is currently in early development. Although it has been tested and benchmarked, it may not yet be suitable for all production environments. If you decide to use it in a production setting, please report any problems you find.</p>
+</details>
+
+<details>
+  <summary><b>Which eviction policy should I choose?</b></summary>
+  <p>It depends on your use case:
+    <ul>
+      <li><b>TinyLFU</b>: Best for workloads that prioritize hit rates.</li>
+      <li><b>SIEVE</b>: Good balance between throughput and hit rate.</li>
+      <li><b>S3FIFO</b>: Provides decent throughput with a decent hit rate.</li>
+      <li><b>LRU</b>: Reliable for standard caching needs but falls behind compared to other options.</li>
+      <li><b>FIFO</b>: High throughput, but lowest hit rates.</li>
+    </ul>
+  </p>
+</details>
+
+<details>
+  <summary><b>Can I use Zigache in a multi-threaded environment?</b></summary>
+  <p>Yes, Zigache supports thread-safe operations and sharding. The performance is not the greatest but there are plans to improve it.</p>
+</details>
+
+<details>
+  <summary><b>What type of keys does Zigache support?</b></summary>
+  <p>Zigache supports most key types like strings, integers, structs, arrays, pointers, enums, and optionals. However, floats are not supported due to precision issues.</p>
+</details>
+
+<details>
+  <summary><b>How can I contribute to Zigache?</b></summary>
+  <p>We welcome contributions! Please follow the <a href="https://ziglang.org/documentation/master/#Style-Guide">Zig Style Guide</a> and ensure that your changes include appropriate tests.</p>
+</details>
