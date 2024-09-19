@@ -6,7 +6,7 @@ const utils = @import("utils.zig");
 const Benchmark = @import("benchmark.zig").Benchmark;
 const Zipfian = @import("Zipfian.zig");
 const Allocator = std.mem.Allocator;
-const PolicyConfig = zigache.Config.PolicyConfig;
+const PolicyConfig = zigache.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
 const TraceBenchmarkResult = utils.TraceBenchmarkResult;
 

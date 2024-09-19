@@ -2,7 +2,7 @@ const std = @import("std");
 const zigache = @import("zigache");
 const utils = @import("utils.zig");
 
-const PolicyConfig = zigache.Config.PolicyConfig;
+const PolicyConfig = zigache.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
 const Config = utils.Config;
 
@@ -38,7 +38,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
             const local_allocator = gpa.allocator();
 
             // Initialize the cache
-            var cache: Cache = try .init(local_allocator);
+            var cache: Cache = try .init(local_allocator, .{});
             defer cache.deinit();
 
             // Initialize thread contexts

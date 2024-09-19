@@ -10,7 +10,7 @@ pub fn main() !void {
         .cache_size = 10,
         .policy = .SIEVE,
         .ttl_enabled = true, // Enable TTL functionality
-    }) = try .init(allocator);
+    }) = try .init(allocator, .{});
     defer cache.deinit();
 
     // Shows basic TTL functionality

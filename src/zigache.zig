@@ -81,9 +81,9 @@ pub const Config = struct {
     /// when the cache reaches its capacity. Different policies have different
     /// trade-offs in terms of performance, memory usage, and cache hit rate.
     ///
-    /// Some policies have configurable parameters. Choose the policy that
-    /// best fits your workload characteristics and performance requirements.
-    policy: PolicyConfig,
+    /// Choose the policy that best fits your workload characteristics and
+    /// performance requirements.
+    policy: PolicyType,
 
     pub const PolicyType = enum {
         FIFO,
@@ -92,25 +92,27 @@ pub const Config = struct {
         SIEVE,
         S3FIFO,
     };
+};
 
-    pub const PolicyConfig = union(PolicyType) {
-        FIFO: struct {},
-        LRU: struct {},
-        TinyLFU: struct {
-            /// Depth of the Count-Min Sketch used for frequency counting.
-            /// A higher value increases accuracy but uses more memory.
-            cms_depth: u32 = 3,
-            /// Size of the admission window as a percentage of the main cache.
-            /// Balances between admitting new items and retaining valuable ones.
-            window_size_percent: u8 = 1,
-        },
-        SIEVE: struct {},
-        S3FIFO: struct {
-            /// Size of the small window as a percentage of the total cache size.
-            /// Affects the balance between recent and frequent items.
-            small_size_percent: u8 = 10,
-        },
-    };
+pub const PolicyConfig = union(Config.PolicyType) {
+    FIFO: struct {},
+    LRU: struct {},
+    TinyLFU: struct {
+        /// Depth of the Count-Min Sketch used for frequency counting.
+        /// A higher value increases accuracy but uses more memory.
+        cms_depth: u32 = 3,
+        /// Size of the admission window as a percentage of the main cache.
+        /// Affects the balance between admitting new items and retaining
+        /// valuable ones.
+        window_size_percent: u8 = 1,
+    },
+    SIEVE: struct {},
+    S3FIFO: struct {
+        /// Size of the small window as a percentage of the total cache size.
+        /// Affects the balance between admitting new items and retaining
+        /// valuable ones.
+        small_size_percent: u8 = 10,
+    },
 };
 
 /// Creates a sharded cache for key-value pairs.
@@ -132,7 +134,12 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
         const Self = @This();
 
         /// Initialize a new cache with the given configuration.
-        pub fn init(allocator: std.mem.Allocator) !Self {
+        pub fn init(allocator: std.mem.Allocator, policy_opts: anytype) !Self {
+            // This comptime check ensures a struct is passed and provides a
+            // clear error message at compile-time for proper configuration of
+            // the cache policy.
+            comptime if (@typeInfo(@TypeOf(policy_opts)) != .@"struct") @compileError("policy_opts must be a struct");
+
             const shard_count = try std.math.ceilPowerOfTwo(u16, config.shard_count);
             const shard_cache_size = config.cache_size / shard_count;
             // We allocate an extra node to handle the case where the pool is
@@ -144,7 +151,15 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             errdefer allocator.free(shards);
 
             for (shards) |*shard| {
-                shard.* = try CacheType.init(allocator, shard_cache_size, shard_pool_size);
+                shard.* = try CacheType.init(
+                    allocator,
+                    shard_cache_size,
+                    shard_pool_size,
+                    // Matches the passed struct with the policy type specified
+                    // in the config. This guarantees at compile-time that the
+                    // provided options are compatible with the selected policy.
+                    @unionInit(PolicyConfig, @tagName(config.policy), policy_opts),
+                );
             }
 
             return .{
@@ -249,7 +264,7 @@ comptime {
 }
 
 test "Zigache - string keys" {
-    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -261,7 +276,7 @@ test "Zigache - string keys" {
 }
 
 test "Zigache - overwrite existing string key" {
-    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -271,7 +286,7 @@ test "Zigache - overwrite existing string key" {
 }
 
 test "Zigache - remove string key" {
-    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -281,7 +296,7 @@ test "Zigache - remove string key" {
 }
 
 test "Zigache - integer keys" {
-    var cache: Cache(i32, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache(i32, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "one");
@@ -300,7 +315,7 @@ test "Zigache - integer keys" {
 test "Zigache - struct keys" {
     const Point = struct { x: i32, y: i32 };
 
-    var cache: Cache(Point, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache(Point, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(.{ .x = 1, .y = 2 }, "point one-two");
@@ -317,7 +332,7 @@ test "Zigache - struct keys" {
 }
 
 test "Zigache - array keys" {
-    var cache: Cache([3]u8, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache([3]u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put([3]u8{ 1, 2, 3 }, "one-two-three");
@@ -338,7 +353,7 @@ test "Zigache - pointer keys" {
     var value2: i32 = 100;
     var value3: i32 = 200;
 
-    var cache: Cache(*i32, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache(*i32, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(&value1, "pointer to 0");
@@ -361,7 +376,7 @@ test "Zigache - enum keys" {
         Blue,
     };
 
-    var cache: Cache(Color, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache(Color, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(.Red, "crimson");
@@ -377,7 +392,7 @@ test "Zigache - enum keys" {
 }
 
 test "Zigache - optional keys" {
-    var cache: Cache(?i32, []const u8, TestConfig) = try .init(testing.allocator);
+    var cache: Cache(?i32, []const u8, TestConfig) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(null, "no value");

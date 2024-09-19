@@ -1,7 +1,7 @@
 const std = @import("std");
 const zigache = @import("zigache");
 
-const PolicyConfig = zigache.Config.PolicyConfig;
+const PolicyConfig = zigache.PolicyConfig;
 
 pub const ExecutionMode = enum {
     single,

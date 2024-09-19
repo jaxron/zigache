@@ -32,7 +32,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime config: Config) type {
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: zigache.PolicyConfig) !Self {
             return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
@@ -131,7 +131,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime config: Config) type {
 const testing = std.testing;
 
 test "SIEVE - basic insert and get" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -142,7 +142,7 @@ test "SIEVE - basic insert and get" {
 }
 
 test "SIEVE - overwrite existing key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -153,7 +153,7 @@ test "SIEVE - overwrite existing key" {
 }
 
 test "SIEVE - remove key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .SIEVE }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .SIEVE }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -167,7 +167,7 @@ test "SIEVE - remove key" {
 }
 
 test "SIEVE - eviction" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 3, .policy = .SIEVE }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 3, .policy = .SIEVE }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -189,7 +189,7 @@ test "SIEVE - eviction" {
 }
 
 test "SIEVE - TTL functionality" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .SIEVE }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .SIEVE }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.putWithTTL(1, "value1", 1); // 1ms TTL

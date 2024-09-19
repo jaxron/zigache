@@ -46,8 +46,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime config: Config) type
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
-            const window_size = @max(1, cache_size * config.policy.TinyLFU.window_size_percent / 100); // 1% window cache
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, opts: zigache.PolicyConfig) !Self {
+            const window_size = @max(1, cache_size * opts.TinyLFU.window_size_percent / 100); // 1% window cache
             const main_size = @max(2, cache_size - window_size);
             const protected_size = @max(1, main_size * 8 / 10); // 80% of main cache
             const probationary_size = main_size - protected_size; // 20% of main cache
@@ -55,7 +55,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime config: Config) type
             const reset_threshold = cache_size * 10;
             return .{
                 .map = try .init(allocator, cache_size, pool_size),
-                .sketch = try .init(allocator, cache_size, config.policy.TinyLFU.cms_depth, reset_threshold),
+                .sketch = try .init(allocator, cache_size, opts.TinyLFU.cms_depth, reset_threshold),
                 .window_size = window_size,
                 .probationary_size = probationary_size,
                 .protected_size = protected_size,
@@ -200,7 +200,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime config: Config) type
 const testing = std.testing;
 
 test "TinyLFU - basic insert and get" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .TinyLFU }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -211,7 +211,7 @@ test "TinyLFU - basic insert and get" {
 }
 
 test "TinyLFU - overwrite existing key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .TinyLFU }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -222,7 +222,7 @@ test "TinyLFU - overwrite existing key" {
 }
 
 test "TinyLFU - remove key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .TinyLFU }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -236,7 +236,7 @@ test "TinyLFU - remove key" {
 }
 
 test "TinyLFU - eviction and promotion" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 5, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator); // Total size: 5 (window: 1, probationary: 1, protected: 3)
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 5, .policy = .TinyLFU }) = try .init(testing.allocator, .{}); // Total size: 5 (window: 1, probationary: 1, protected: 3)
     defer cache.deinit();
 
     // Fill the cache
@@ -267,7 +267,7 @@ test "TinyLFU - eviction and promotion" {
 }
 
 test "TinyLFU - TTL functionality" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .TinyLFU }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.putWithTTL(1, "value1", 1); // 1ms TTL

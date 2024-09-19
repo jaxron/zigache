@@ -1,6 +1,6 @@
 <h1 align="center">
     <picture>
-      <img alt="Zigache" src="./assets/images/zigache_logo.png" style="min-width: 200px; max-width: 400px; width: 100%;">
+      <img alt="Zigache" src="./assets/images/zigache_logo.png" style="min-width: 200px; max-width: 360px; width: 100%;">
     </picture>
   <br>
   <a href="https://github.com/jaxron/zigache/blob/main/LICENSE.md">
@@ -58,24 +58,10 @@ Zigache offers a rich set of features to designed to meet various caching needs:
 
 To use Zigache in your project, follow these steps:
 
-1. Add Zigache as a dependency in your `build.zig.zon`:
+1. Run this command in your project's root directory:
 
-    ```zig
-    .{
-        .name = "your-project",
-        .version = "1.0.0",
-        .paths = .{
-            "src",
-            "build.zig",
-            "build.zig.zon",
-        },
-        .dependencies = .{
-            .zigache = .{
-                .url = "https://github.com/jaxron/zigache/archive/41e78a2f7f8cfcce47ad7dccc40be4423de57461.tar.gz",
-                .hash = "122061d51cf73327e469c0a35fe3030208c8db04f58d1e1fce68d16f7d5c8d50524d",
-            },
-        },
-    }
+    ```sh
+    zig fetch --save git+https://github.com/jaxron/zigache.git
     ```
 
 2. In your `build.zig`, add:
@@ -110,14 +96,14 @@ To use Zigache in your project, follow these steps:
     }
     ```
 
-3. Now you can import and use Zigache in your code:
+3. Now you can import and use Zigache in your code like this:
 
     ```zig
     const std = @import("std");
     const Cache = @import("zigache").Cache;
     
     pub fn main() !void {
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
         defer _ = gpa.deinit();
         const allocator = gpa.allocator();
     
@@ -125,7 +111,7 @@ To use Zigache in your project, follow these steps:
         var cache: Cache([]const u8, []const u8, .{
             .cache_size = 1,
             .policy = .SIEVE,
-        }) = try .init(allocator);
+        }) = try .init(allocator, .{});
         defer cache.deinit();
     
         // your code...
@@ -152,13 +138,13 @@ Zigache offers flexible configuration options to adjust the cache to your needs:
 
 ```zig
 var cache: Cache([]const u8, []const u8, .{
-    .cache_size = 10000,   // Total number of items the cache can hold
-    .pool_size = 1000,     // Total number of nodes to pre-allocate for better performance
-    .shard_count = 16,     // Number of shards for concurrent access
-    .thread_safety = true, // Whether to enable safety features for concurrent access
-    .ttl_enabled = false,  // Whether to enable the Time-To-Live (TTL) functionality
-    .policy = .SIEVE,      // Eviction policy
-}) = try .init(allocator);
+    .cache_size = 10000,   // Maximum number of items the cache can store
+    .pool_size = 1000,     // Pre-allocated nodes to optimize performance
+    .shard_count = 16,     // Number of shards for concurrent access handling
+    .thread_safety = true, // Enable thread safety for multi-threaded environments
+    .ttl_enabled = false,  // Enable Time-To-Live (TTL) functionality
+    .policy = .SIEVE,      // Eviction policy in use
+}) = try .init(allocator, .{});
 ```
 
 > For more detailed information, refer to the [full documentation](https://jaxron.me/zigache/).
@@ -212,6 +198,7 @@ Zigache is in its early stages. Our main priority is on implementing features, w
 - [ ] 🔄 Adaptive system to adjust eviction policies
 - [ ] 🔓 Lock-free data structures
 - [ ] 📚 More extensive examples
+- [ ] ⚡️ Async (non-blocking) I/O operations
 
 > 💡 **We value your input!** Have suggestions for our roadmap? Feel free to open an issue or start a discussion.
 

@@ -22,7 +22,7 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime config: Config) type {
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: zigache.PolicyConfig) !Self {
             return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
@@ -101,7 +101,7 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime config: Config) type {
 const testing = std.testing;
 
 test "FIFO - basic insert and get" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .FIFO }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -112,7 +112,7 @@ test "FIFO - basic insert and get" {
 }
 
 test "FIFO - overwrite existing key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .FIFO }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -123,7 +123,7 @@ test "FIFO - overwrite existing key" {
 }
 
 test "FIFO - remove key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .FIFO }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -137,7 +137,7 @@ test "FIFO - remove key" {
 }
 
 test "FIFO - eviction" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 3, .policy = .FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 3, .policy = .FIFO }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -157,7 +157,7 @@ test "FIFO - eviction" {
 }
 
 test "FIFO - TTL functionality" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .FIFO }) = try .init(testing.allocator);
+    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .FIFO }) = try .init(testing.allocator, .{});
     defer cache.deinit();
 
     try cache.putWithTTL(1, "value1", 1); // 1ms TTL
