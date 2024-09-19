@@ -7,10 +7,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     var cache: Cache([]const u8, []const u8, .{
+        .ttl_enabled = true, // Enable TTL functionality
+    }) = try .init(allocator, .{
         .cache_size = 10,
         .policy = .SIEVE,
-        .ttl_enabled = true, // Enable TTL functionality
-    }) = try .init(allocator, .{});
+    });
     defer cache.deinit();
 
     // Shows basic TTL functionality

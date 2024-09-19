@@ -23,7 +23,7 @@ fn stringKeys(allocator: std.mem.Allocator) !void {
 
     // Create a cache with string keys and values
     // The cache size is set to 2 and uses the SIEVE eviction policy
-    var cache: Cache([]const u8, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator, .{});
+    var cache: Cache([]const u8, []const u8, .{}) = try .init(allocator, .{ .cache_size = 2, .policy = .SIEVE });
     defer cache.deinit(); // Ensure cache resources are freed when we're done
 
     // Set key-value pairs in the cache
@@ -44,7 +44,7 @@ fn integerKeys(allocator: std.mem.Allocator) !void {
     std.debug.print("\n--- Integer Keys ---\n", .{});
 
     // Create a cache with integer keys and string values
-    var cache: Cache(i32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator, .{});
+    var cache: Cache(i32, []const u8, .{}) = try .init(allocator, .{ .cache_size = 2, .policy = .SIEVE });
     defer cache.deinit();
 
     try cache.put(1, "one");
@@ -65,7 +65,7 @@ fn structKeys(allocator: std.mem.Allocator) !void {
     const Point = struct { x: i32, y: i32 };
 
     // Create a cache with struct keys and string values
-    var cache: Cache(Point, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator, .{});
+    var cache: Cache(Point, []const u8, .{}) = try .init(allocator, .{ .cache_size = 2, .policy = .SIEVE });
     defer cache.deinit();
 
     try cache.put(.{ .x = 1, .y = 2 }, "point1");
@@ -83,7 +83,7 @@ fn arrayKeys(allocator: std.mem.Allocator) !void {
     std.debug.print("\n--- Array Keys ---\n", .{});
 
     // Create a cache with fixed-size array keys
-    var cache: Cache([3]u8, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator, .{});
+    var cache: Cache([3]u8, []const u8, .{}) = try .init(allocator, .{ .cache_size = 2, .policy = .SIEVE });
     defer cache.deinit();
 
     try cache.put([3]u8{ 1, 2, 3 }, "array1");
@@ -105,7 +105,7 @@ fn pointerKeys(allocator: std.mem.Allocator) !void {
     var value2: i32 = 20;
 
     // Create a cache with pointer keys
-    var cache: Cache(*i32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator, .{});
+    var cache: Cache(*i32, []const u8, .{}) = try .init(allocator, .{ .cache_size = 2, .policy = .SIEVE });
     defer cache.deinit();
 
     try cache.put(&value1, "pointer1");
@@ -126,7 +126,7 @@ fn enumKeys(allocator: std.mem.Allocator) !void {
     const Color = enum { Red, Green, Blue };
 
     // Create a cache with enum keys
-    var cache: Cache(Color, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator, .{});
+    var cache: Cache(Color, []const u8, .{}) = try .init(allocator, .{ .cache_size = 2, .policy = .SIEVE });
     defer cache.deinit();
 
     try cache.put(.Red, "red");
@@ -144,7 +144,7 @@ fn optionalKeys(allocator: std.mem.Allocator) !void {
     std.debug.print("\n--- Optional Keys ---\n", .{});
 
     // Create a cache with optional integer keys
-    var cache: Cache(?i32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator, .{});
+    var cache: Cache(?i32, []const u8, .{}) = try .init(allocator, .{ .cache_size = 2, .policy = .SIEVE });
     defer cache.deinit();
 
     try cache.put(null, "null_value");

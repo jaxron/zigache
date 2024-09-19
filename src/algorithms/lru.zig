@@ -2,16 +2,17 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
-const Config = zigache.Config;
+const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
+const ComptimeConfig = zigache.ComptimeConfig;
 const Allocator = std.mem.Allocator;
 
 /// LRU is a cache eviction policy based on usage recency. It keeps track of
 /// what items are used and when. When the cache is full, the item that hasn't
 /// been used for the longest time is evicted. This policy is based on the idea
 /// that items that have been used recently are likely to be used again soon.
-pub fn LRU(comptime K: type, comptime V: type, comptime config: Config) type {
-    const thread_safety = config.thread_safety;
-    const ttl_enabled = config.ttl_enabled;
+pub fn LRU(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
+    const thread_safety = comptime_opts.thread_safety;
+    const ttl_enabled = comptime_opts.ttl_enabled;
     return struct {
         const Map = zigache.Map(K, V, void, ttl_enabled);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);
@@ -23,7 +24,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime config: Config) type {
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: zigache.PolicyConfig) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyConfig) !Self {
             return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
@@ -108,7 +109,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime config: Config) type {
 const testing = std.testing;
 
 test "LRU - basic insert and get" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .LRU }) = try .init(testing.allocator, .{});
+    var cache: zigache.Cache(u32, []const u8, .{}) = try .init(testing.allocator, .{ .cache_size = 2, .policy = .LRU });
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -120,7 +121,7 @@ test "LRU - basic insert and get" {
 }
 
 test "LRU - overwrite existing key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .LRU }) = try .init(testing.allocator, .{});
+    var cache: zigache.Cache(u32, []const u8, .{}) = try .init(testing.allocator, .{ .cache_size = 2, .policy = .LRU });
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -131,7 +132,7 @@ test "LRU - overwrite existing key" {
 }
 
 test "LRU - remove key" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .LRU }) = try .init(testing.allocator, .{});
+    var cache: zigache.Cache(u32, []const u8, .{}) = try .init(testing.allocator, .{ .cache_size = 1, .policy = .LRU });
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -145,7 +146,7 @@ test "LRU - remove key" {
 }
 
 test "LRU - eviction" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 4, .policy = .LRU }) = try .init(testing.allocator, .{});
+    var cache: zigache.Cache(u32, []const u8, .{}) = try .init(testing.allocator, .{ .cache_size = 4, .policy = .LRU });
     defer cache.deinit();
 
     try cache.put(1, "value1");
@@ -172,7 +173,7 @@ test "LRU - eviction" {
 }
 
 test "LRU - TTL functionality" {
-    var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .LRU }) = try .init(testing.allocator, .{});
+    var cache: zigache.Cache(u32, []const u8, .{ .ttl_enabled = true }) = try .init(testing.allocator, .{ .cache_size = 1, .policy = .LRU });
     defer cache.deinit();
 
     try cache.putWithTTL(1, "value1", 1); // 1ms TTL

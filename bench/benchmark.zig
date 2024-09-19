@@ -2,17 +2,13 @@ const std = @import("std");
 const zigache = @import("zigache");
 const utils = @import("utils.zig");
 
-const PolicyConfig = zigache.PolicyConfig;
+const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
 const Config = utils.Config;
 
 pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
     return struct {
         const Cache = zigache.Cache(u64, u64, .{
-            .cache_size = opts.cache_size,
-            .pool_size = opts.pool_size,
-            .shard_count = if (opts.execution_mode == .multi) opts.shard_count else 1,
-            .policy = policy,
             .thread_safety = opts.execution_mode == .multi,
             .ttl_enabled = false,
         });
@@ -38,7 +34,12 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
             const local_allocator = gpa.allocator();
 
             // Initialize the cache
-            var cache: Cache = try .init(local_allocator, .{});
+            var cache: Cache = try .init(local_allocator, .{
+                .cache_size = opts.cache_size,
+                .pool_size = opts.pool_size,
+                .shard_count = if (opts.execution_mode == .multi) opts.shard_count else 1,
+                .policy = policy,
+            });
             defer cache.deinit();
 
             // Initialize thread contexts

@@ -15,7 +15,40 @@ pub const Pool = @import("structures/pool.zig").Pool;
 
 pub fn main() !void {}
 
-pub const Config = struct {
+pub const ComptimeConfig = struct {
+    /// Determines whether the Time-To-Live (TTL) functionality is enabled.
+    ///
+    /// When enabled, TTL is checked only when an item is accessed via the `get`
+    /// operation and removed if it has expired. This is crucial for applications
+    /// that require the  invalidation of stale entries.
+    ///
+    /// Disabling this option when TTL is not used will improve performance by
+    /// removing unnecessary expiration checks during cache operations. It also
+    /// reduces memory usage as the TTL metadata is not stored for each entry.
+    ///
+    /// Default is false for performance, but can be set to true you use TTL.
+    /// A compile-time error will be raised if TTL is disabled but TTL operations
+    /// are attempted in the cache.
+    ttl_enabled: bool = false,
+
+    /// Determines whether the cache should be thread-safe using mutexes.
+    ///
+    /// Using mutexes provides strong consistency guarantees but may introduce
+    /// some performance overhead due to lock contention, especially under high
+    /// concurrency.
+    ///
+    /// This works in conjunction with `shard_count` as each shard gets its own
+    /// mutex, rather than having a single global lock, which reduces contention
+    /// as operations on different shards can proceed in parallel without waiting
+    /// for each other.
+    ///
+    /// Default is true for safety, but can be set to false if you're certain
+    /// the cache will only be accessed from a single thread or if you're
+    /// managing concurrency yourself.
+    thread_safety: bool = true,
+};
+
+pub const RuntimeConfig = struct {
     // The maximum number of items the cache can hold before it starts evicting.
     cache_size: u32,
 
@@ -44,37 +77,6 @@ pub const Config = struct {
     /// shard counts to find the optimal configuration.
     shard_count: u16 = 1,
 
-    /// Determines whether the cache should be thread-safe using mutexes.
-    ///
-    /// Using mutexes provides strong consistency guarantees but may introduce
-    /// some performance overhead due to lock contention, especially under high
-    /// concurrency.
-    ///
-    /// This works in conjunction with `shard_count` as each shard gets its own
-    /// mutex, rather than having a single global lock, which reduces contention
-    /// as operations on different shards can proceed in parallel without waiting
-    /// for each other.
-    ///
-    /// Default is true for safety, but can be set to false if you're certain
-    /// the cache will only be accessed from a single thread or if you're
-    /// managing concurrency yourself.
-    thread_safety: bool = true,
-
-    /// Determines whether the Time-To-Live (TTL) functionality is enabled.
-    ///
-    /// When enabled, TTL is checked only when an item is accessed via the `get`
-    /// operation and removed if it has expired. This is crucial for applications
-    /// that require the  invalidation of stale entries.
-    ///
-    /// Disabling this option when TTL is not used will improve performance by
-    /// removing unnecessary expiration checks during cache operations. It also
-    /// reduces memory usage as the TTL metadata is not stored for each entry.
-    ///
-    /// Default is false for performance, but can be set to true you use TTL.
-    /// A compile-time error will be raised if TTL is disabled but TTL operations
-    /// are attempted in the cache.
-    ttl_enabled: bool = false,
-
     /// The policy to use for managing cache entries.
     ///
     /// This field determines the algorithm used to decide which items to remove
@@ -83,7 +85,7 @@ pub const Config = struct {
     ///
     /// Choose the policy that best fits your workload characteristics and
     /// performance requirements.
-    policy: PolicyType,
+    policy: PolicyConfig,
 
     pub const PolicyType = enum {
         FIFO,
@@ -92,74 +94,121 @@ pub const Config = struct {
         SIEVE,
         S3FIFO,
     };
-};
 
-pub const PolicyConfig = union(Config.PolicyType) {
-    FIFO: struct {},
-    LRU: struct {},
-    TinyLFU: struct {
-        /// Depth of the Count-Min Sketch used for frequency counting.
-        /// A higher value increases accuracy but uses more memory.
-        cms_depth: u32 = 3,
-        /// Size of the admission window as a percentage of the main cache.
-        /// Affects the balance between admitting new items and retaining
-        /// valuable ones.
-        window_size_percent: u8 = 1,
-    },
-    SIEVE: struct {},
-    S3FIFO: struct {
-        /// Size of the small window as a percentage of the total cache size.
-        /// Affects the balance between admitting new items and retaining
-        /// valuable ones.
-        small_size_percent: u8 = 10,
-    },
+    pub const PolicyConfig = union(enum) {
+        FIFO: struct {},
+        LRU: struct {},
+        TinyLFU: struct {
+            /// Depth of the Count-Min Sketch used for frequency counting.
+            /// A higher value increases accuracy but uses more memory.
+            cms_depth: u32 = 3,
+            /// Size of the admission window as a percentage of the main cache.
+            /// Affects the balance between admitting new items and retaining
+            /// valuable ones.
+            window_size_percent: u8 = 1,
+        },
+        SIEVE: struct {},
+        S3FIFO: struct {
+            /// Size of the small window as a percentage of the total cache size.
+            /// Affects the balance between admitting new items and retaining
+            /// valuable ones.
+            small_size_percent: u8 = 10,
+        },
+    };
 };
 
 /// Creates a sharded cache for key-value pairs.
 /// This function returns a cache type specialized for the given key and value types.
-pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
+pub fn Cache(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
     return struct {
-        const CacheType = switch (config.policy) {
-            .FIFO => FIFO(K, V, config),
-            .LRU => LRU(K, V, config),
-            .TinyLFU => TinyLFU(K, V, config),
-            .SIEVE => SIEVE(K, V, config),
-            .S3FIFO => S3FIFO(K, V, config),
+        /// A unified interface for different cache implementations.
+        pub const CacheImpl = union(RuntimeConfig.PolicyType) {
+            // NOTE: While it's better to implement interface-like behavior using
+            // vtables (structs with function pointers), it can introduce complexity
+            // or runtime overhead. I have chosen the union approach here as I do not
+            // wish to complicate the structure of the code and I am willing to accept
+            // the trade-offs for now. I may choose revisit this decision in the future
+            // when accepted proposals like pinned structs are implemented in Zig.
+
+            FIFO: FIFO(K, V, comptime_opts),
+            LRU: LRU(K, V, comptime_opts),
+            TinyLFU: TinyLFU(K, V, comptime_opts),
+            SIEVE: SIEVE(K, V, comptime_opts),
+            S3FIFO: S3FIFO(K, V, comptime_opts),
+
+            pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32, policy: RuntimeConfig.PolicyConfig) !CacheImpl {
+                return switch (policy) {
+                    .FIFO => .{ .FIFO = try .init(allocator, total_size, base_size, policy) },
+                    .LRU => .{ .LRU = try .init(allocator, total_size, base_size, policy) },
+                    .TinyLFU => .{ .TinyLFU = try .init(allocator, total_size, base_size, policy) },
+                    .SIEVE => .{ .SIEVE = try .init(allocator, total_size, base_size, policy) },
+                    .S3FIFO => .{ .S3FIFO = try .init(allocator, total_size, base_size, policy) },
+                };
+            }
+
+            pub fn deinit(self: *CacheImpl) void {
+                switch (self.*) {
+                    inline else => |*case| case.deinit(),
+                }
+            }
+
+            pub fn contains(self: *CacheImpl, key: K, hash_code: u64) bool {
+                return switch (self.*) {
+                    inline else => |*case| case.contains(key, hash_code),
+                };
+            }
+
+            pub fn count(self: *CacheImpl) usize {
+                return switch (self.*) {
+                    inline else => |*case| case.count(),
+                };
+            }
+
+            pub fn get(self: *CacheImpl, key: K, hash_code: u64) ?V {
+                return switch (self.*) {
+                    inline else => |*case| case.get(key, hash_code),
+                };
+            }
+
+            pub fn put(self: *CacheImpl, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
+                switch (self.*) {
+                    inline else => |*case| try case.put(key, value, ttl, hash_code),
+                }
+            }
+
+            pub fn putWithTTL(self: *CacheImpl, key: K, value: V, ttl: u64, hash_code: u64) !void {
+                return switch (self.*) {
+                    inline else => |*case| case.putWithTTL(key, value, ttl, hash_code),
+                };
+            }
+
+            pub fn remove(self: *CacheImpl, key: K, hash_code: u64) bool {
+                return switch (self.*) {
+                    inline else => |*case| case.remove(key, hash_code),
+                };
+            }
         };
 
         allocator: std.mem.Allocator,
-        shards: []CacheType,
+        shards: []CacheImpl,
         shard_mask: u16,
 
         const Self = @This();
 
         /// Initialize a new cache with the given configuration.
-        pub fn init(allocator: std.mem.Allocator, policy_opts: anytype) !Self {
-            // This comptime check ensures a struct is passed and provides a
-            // clear error message at compile-time for proper configuration of
-            // the cache policy.
-            comptime if (@typeInfo(@TypeOf(policy_opts)) != .@"struct") @compileError("policy_opts must be a struct");
-
-            const shard_count = try std.math.ceilPowerOfTwo(u16, config.shard_count);
-            const shard_cache_size = config.cache_size / shard_count;
+        pub fn init(allocator: std.mem.Allocator, opts: RuntimeConfig) !Self {
+            const shard_count = try std.math.ceilPowerOfTwo(u16, opts.shard_count);
+            const shard_cache_size = opts.cache_size / shard_count;
             // We allocate an extra node to handle the case where the pool is
             // full since we acquire a node before the eviction process. Check
             // the `put` method in the Map implementation for more information.
-            const shard_pool_size = (config.pool_size orelse config.cache_size) / shard_count + 1;
+            const shard_pool_size = (opts.pool_size orelse opts.cache_size) / shard_count + 1;
 
-            const shards = try allocator.alloc(CacheType, shard_count);
+            const shards = try allocator.alloc(CacheImpl, shard_count);
             errdefer allocator.free(shards);
 
             for (shards) |*shard| {
-                shard.* = try CacheType.init(
-                    allocator,
-                    shard_cache_size,
-                    shard_pool_size,
-                    // Matches the passed struct with the policy type specified
-                    // in the config. This guarantees at compile-time that the
-                    // provided options are compatible with the selected policy.
-                    @unionInit(PolicyConfig, @tagName(config.policy), policy_opts),
-                );
+                shard.* = try CacheImpl.init(allocator, shard_cache_size, shard_pool_size, opts.policy);
             }
 
             return .{
@@ -192,6 +241,12 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             return total_count;
         }
 
+        /// Retrieve a value from the cache given its key.
+        pub fn get(self: *Self, key: K) ?V {
+            const hash_code, const shard = self.getShard(key);
+            return shard.get(key, hash_code);
+        }
+
         /// Set a key-value pair in the cache, evicting an item if necessary.
         /// Both the key and value must remain valid for as long as they're in the cache.
         pub fn put(self: *Self, key: K, value: V) !void {
@@ -205,16 +260,10 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
         /// for this entry returns a null result and is removed from the cache.
         /// Time is measured in milliseconds.
         pub fn putWithTTL(self: *Self, key: K, value: V, ttl: u64) !void {
-            comptime if (!config.ttl_enabled) @compileError("TTL is not enabled for this cache configuration");
+            comptime if (!comptime_opts.ttl_enabled) @compileError("TTL is not enabled for this cache configuration");
 
             const hash_code, const shard = self.getShard(key);
             try shard.put(key, value, ttl, hash_code);
-        }
-
-        /// Retrieve a value from the cache given its key.
-        pub fn get(self: *Self, key: K) ?V {
-            const hash_code, const shard = self.getShard(key);
-            return shard.get(key, hash_code);
         }
 
         /// Removes a key-value pair from the cache if it exists.
@@ -226,7 +275,7 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
 
         /// Determines which shard a given key belongs to based on its hash.
         /// This method ensures even distribution of items across shards for load balancing.
-        pub inline fn getShard(self: *Self, key: K) struct { u64, *CacheType } {
+        pub inline fn getShard(self: *Self, key: K) struct { u64, *CacheImpl } {
             const hash_code = hash(K, key);
             return .{ hash_code, &self.shards[hash_code & self.shard_mask] };
         }
@@ -249,22 +298,14 @@ pub fn hash(comptime K: type, key: K) u64 {
 
 const testing = std.testing;
 
-const TestConfig: Config = .{
+const TestConfig: RuntimeConfig = .{
     .cache_size = 100,
     .shard_count = 1,
     .policy = .FIFO,
 };
 
-comptime {
-    _ = FIFO;
-    _ = LRU;
-    _ = TinyLFU;
-    _ = SIEVE;
-    _ = S3FIFO;
-}
-
 test "Zigache - string keys" {
-    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -276,7 +317,7 @@ test "Zigache - string keys" {
 }
 
 test "Zigache - overwrite existing string key" {
-    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -286,7 +327,7 @@ test "Zigache - overwrite existing string key" {
 }
 
 test "Zigache - remove string key" {
-    var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -296,7 +337,7 @@ test "Zigache - remove string key" {
 }
 
 test "Zigache - integer keys" {
-    var cache: Cache(i32, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache(i32, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put(1, "one");
@@ -315,7 +356,7 @@ test "Zigache - integer keys" {
 test "Zigache - struct keys" {
     const Point = struct { x: i32, y: i32 };
 
-    var cache: Cache(Point, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache(Point, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put(.{ .x = 1, .y = 2 }, "point one-two");
@@ -332,7 +373,7 @@ test "Zigache - struct keys" {
 }
 
 test "Zigache - array keys" {
-    var cache: Cache([3]u8, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache([3]u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put([3]u8{ 1, 2, 3 }, "one-two-three");
@@ -353,7 +394,7 @@ test "Zigache - pointer keys" {
     var value2: i32 = 100;
     var value3: i32 = 200;
 
-    var cache: Cache(*i32, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache(*i32, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put(&value1, "pointer to 0");
@@ -376,7 +417,7 @@ test "Zigache - enum keys" {
         Blue,
     };
 
-    var cache: Cache(Color, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache(Color, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put(.Red, "crimson");
@@ -392,7 +433,7 @@ test "Zigache - enum keys" {
 }
 
 test "Zigache - optional keys" {
-    var cache: Cache(?i32, []const u8, TestConfig) = try .init(testing.allocator, .{});
+    var cache: Cache(?i32, []const u8, .{}) = try .init(testing.allocator, TestConfig);
     defer cache.deinit();
 
     try cache.put(null, "no value");
