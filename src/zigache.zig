@@ -46,6 +46,23 @@ pub const ComptimeConfig = struct {
     /// the cache will only be accessed from a single thread or if you're
     /// managing concurrency yourself.
     thread_safety: bool = true,
+
+    /// Determines the maximum load factor of the underlying hashmap in the cache.
+    /// The load factor is the ratio of occupied slots to the total capacity of the hashmap.
+    ///
+    /// This percentage affects the size as a lower percentage results in a larger hashmap.
+    /// The actual capacity is calculated as (desired_item_count * 100 / max_load_percentage),
+    /// rounded up to the next power of two.
+    ///
+    /// This percentage also affects the performance of the cache:
+    /// - Lower percentage: More memory usage, but faster operations due to fewer collisions.
+    /// - Higher percentage: Less memory usage, but slower operations due to more collisions.
+    ///
+    /// For example, with a max_load_percentage of 60, a cache size of 100 items would result in
+    /// a capacity of 256 (100 * 100 / 60 = 166.67, rounded up to the next power of two: 256).
+    ///
+    /// Default is 60, which provides a good balance between memory usage and performance.
+    max_load_percentage: u8 = 60,
 };
 
 pub const RuntimeConfig = struct {

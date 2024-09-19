@@ -17,6 +17,7 @@ const Allocator = std.mem.Allocator;
 pub fn S3FIFO(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
     const thread_safety = comptime_opts.thread_safety;
     const ttl_enabled = comptime_opts.ttl_enabled;
+    const max_load_percentage = comptime_opts.max_load_percentage;
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
@@ -28,8 +29,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime comptime_opts: Compti
             freq: u2,
         };
 
-        const Map = zigache.Map(K, V, Data, ttl_enabled);
-        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled);
+        const Map = zigache.Map(K, V, Data, ttl_enabled, max_load_percentage);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled, max_load_percentage);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
         const Node = Map.Node;
 

@@ -7,7 +7,13 @@ const Allocator = std.mem.Allocator;
 
 /// Map is a generic key-value store that supports different types of keys and nodes.
 /// It uses a hash map for fast lookups and a node pool for efficient memory management.
-pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl_enabled: bool) type {
+pub fn Map(
+    comptime K: type,
+    comptime V: type,
+    comptime Data: type,
+    comptime ttl_enabled: bool,
+    comptime max_load_percentage: u64,
+) type {
     return struct {
         pub const Node = struct {
             pub const empty = .{
@@ -53,12 +59,20 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
         /// maintaining good performance even under heavy delete scenarios. Although
         /// this design choice is not the best, it works well across a wide range of
         /// cache sizes, particularly larger caches.
-        const HashMapType = if (K == []const u8)
-            std.StringHashMap(*Node)
-        else
-            std.AutoHashMap(K, *Node);
+        const HashMapType = std.HashMapUnmanaged(K, *Node, MapContext, max_load_percentage);
 
         /// A context struct that provides hash and equality functions for hashmap.
+        const MapContext = struct {
+            pub fn hash(_: MapContext, key: K) u64 {
+                return zigache.hash(K, key);
+            }
+
+            pub fn eql(_: MapContext, a: K, b: K) bool {
+                return std.meta.eql(a, b);
+            }
+        };
+
+        /// A context struct that provides stores a pre-generated hash.
         const HashContext = struct {
             hash_code: u64,
 
@@ -78,21 +92,24 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
             }
         };
 
-        map: HashMapType,
+        allocator: Allocator,
+        map: HashMapType = .empty,
         pool: Pool,
         capacity: usize,
         tombstones: usize = 0,
+        ctx: MapContext,
 
         const Self = @This();
 
         /// Initializes a new Map with the specified capacity and pre-allocation size.
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32) !Self {
             var self = Self{
-                .map = .init(allocator),
+                .allocator = allocator,
                 .pool = try .init(allocator, pool_size),
                 .capacity = cache_size,
+                .ctx = undefined, // ctx is zero-sized so this is safe
             };
-            try self.map.ensureTotalCapacity(pool_size);
+            try self.map.ensureTotalCapacity(allocator, pool_size);
 
             return self;
         }
@@ -104,7 +121,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
                 self.pool.release(entry.value_ptr.*);
             }
             self.pool.deinit();
-            self.map.deinit();
+            self.map.deinit(self.allocator);
         }
 
         /// Returns true if a key exists in the map.
@@ -139,10 +156,8 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
             // On the other hand, if we did the eviction before acquiring a node, there's a chance
             // that the node already exists and we evict a different node, which would be unnecessary.
             // This could also affect the hit rate of the cache, which is not desirable.
-            const gop = try self.map.getOrPutAdapted(key, HashContext.init(hash_code));
+            const gop = try self.map.getOrPutAdapted(self.allocator, key, HashContext.init(hash_code));
             if (!gop.found_existing) {
-                assert(self.capacity + 1 >= self.map.count());
-
                 const node = try self.pool.acquire();
                 gop.key_ptr.* = key;
                 gop.value_ptr.* = node;
@@ -201,7 +216,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
         /// For more information, view Zig's issue #17851.
         inline fn checkAndRehash(self: *Self) void {
             if (self.tombstones >= self.capacity / 4) {
-                self.map.rehash();
+                self.map.rehash(self.ctx);
                 self.tombstones = 0;
             }
         }
@@ -210,7 +225,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
 
 const testing = std.testing;
 
-const TestMap = Map([]const u8, u32, void, true);
+const TestMap = Map([]const u8, u32, void, true, 60);
 
 test "Map - init and deinit" {
     var map: TestMap = try .init(testing.allocator, 100, 10);

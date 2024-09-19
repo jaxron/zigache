@@ -13,9 +13,10 @@ const Allocator = std.mem.Allocator;
 pub fn LRU(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
     const thread_safety = comptime_opts.thread_safety;
     const ttl_enabled = comptime_opts.ttl_enabled;
+    const max_load_percentage = comptime_opts.max_load_percentage;
     return struct {
-        const Map = zigache.Map(K, V, void, ttl_enabled);
-        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);
+        const Map = zigache.Map(K, V, void, ttl_enabled, max_load_percentage);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled, max_load_percentage);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,
