@@ -120,9 +120,9 @@ pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []con
     }
 }
 
-pub fn generateCacheSizes() [20]u32 {
-    var sizes: [20]u32 = undefined;
-    for (0..20) |i| {
+pub fn generateCacheSizes() [40]u32 {
+    var sizes: [40]u32 = undefined;
+    for (0..40) |i| {
         sizes[i] = (i + 1) * 5000;
     }
     return sizes;
