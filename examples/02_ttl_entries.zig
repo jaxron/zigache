@@ -24,11 +24,11 @@ fn basicTTLUsage(cache: anytype) !void {
     std.debug.print("\n--- Basic TTL Usage ---\n", .{});
 
     // Set an item with a 1 second TTL
-    try cache.setWithTTL("short_lived", "i'll be gone soon", 1000);
+    try cache.putWithTTL("short_lived", "i'll be gone soon", 1000);
     std.debug.print("short_lived (immediate): {?s}\n", .{cache.get("short_lived")});
 
     // Set an item with a longer TTL
-    try cache.setWithTTL("long_lived", "i'll stick around", 10000);
+    try cache.putWithTTL("long_lived", "i'll stick around", 10000);
     std.debug.print("long_lived (immediate): {?s}\n", .{cache.get("long_lived")});
 
     // After 1 second, short_lived should be gone, but long_lived should remain
@@ -41,12 +41,12 @@ fn ttlInteractions(cache: anytype) !void {
     std.debug.print("\n--- TTL Interactions ---\n", .{});
 
     // Set an item with a 3 second TTL
-    try cache.setWithTTL("interactive", "original value", 3000);
+    try cache.putWithTTL("interactive", "original value", 3000);
     std.debug.print("interactive (immediate): {?s}\n", .{cache.get("interactive")});
 
     // After 1 second, update the value and TTL
     std.time.sleep(1 * std.time.ns_per_s);
-    try cache.setWithTTL("interactive", "updated value", 5000);
+    try cache.putWithTTL("interactive", "updated value", 5000);
 
     // After 2 more seconds, the item should still be present due to the TTL update
     std.time.sleep(2 * std.time.ns_per_s);

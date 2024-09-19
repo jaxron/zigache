@@ -85,7 +85,15 @@ pub const Config = struct {
     /// best fits your workload characteristics and performance requirements.
     policy: PolicyConfig,
 
-    pub const PolicyConfig = union(enum) {
+    pub const PolicyType = enum {
+        FIFO,
+        LRU,
+        TinyLFU,
+        SIEVE,
+        S3FIFO,
+    };
+
+    pub const PolicyConfig = union(PolicyType) {
         FIFO: struct {},
         LRU: struct {},
         TinyLFU: struct {
@@ -129,7 +137,7 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
             const shard_cache_size = config.cache_size / shard_count;
             // We allocate an extra node to handle the case where the pool is
             // full since we acquire a node before the eviction process. Check
-            // the `set` method in the Map implementation for more information.
+            // the `put` method in the Map implementation for more information.
             const shard_pool_size = (config.pool_size orelse config.cache_size) / shard_count + 1;
 
             const shards = try allocator.alloc(CacheType, shard_count);
@@ -171,9 +179,9 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
 
         /// Set a key-value pair in the cache, evicting an item if necessary.
         /// Both the key and value must remain valid for as long as they're in the cache.
-        pub fn set(self: *Self, key: K, value: V) !void {
+        pub fn put(self: *Self, key: K, value: V) !void {
             const hash_code, const shard = self.getShard(key);
-            try shard.set(key, value, null, hash_code);
+            try shard.put(key, value, null, hash_code);
         }
 
         /// Sets a key-value pair in the cache with a specified Time-To-Live (TTL),
@@ -181,11 +189,11 @@ pub fn Cache(comptime K: type, comptime V: type, comptime config: Config) type {
         /// should be considered valid in the cache before future `get()` calls
         /// for this entry returns a null result and is removed from the cache.
         /// Time is measured in milliseconds.
-        pub fn setWithTTL(self: *Self, key: K, value: V, ttl: u64) !void {
+        pub fn putWithTTL(self: *Self, key: K, value: V, ttl: u64) !void {
             comptime if (!config.ttl_enabled) @compileError("TTL is not enabled for this cache configuration");
 
             const hash_code, const shard = self.getShard(key);
-            try shard.set(key, value, ttl, hash_code);
+            try shard.put(key, value, ttl, hash_code);
         }
 
         /// Retrieve a value from the cache given its key.
@@ -244,8 +252,8 @@ test "Zigache - string keys" {
     var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set("key1", "value1");
-    try cache.set("key2", "value2");
+    try cache.put("key1", "value1");
+    try cache.put("key2", "value2");
 
     try testing.expectEqualStrings("value1", cache.get("key1").?);
     try testing.expectEqualStrings("value2", cache.get("key2").?);
@@ -256,8 +264,8 @@ test "Zigache - overwrite existing string key" {
     var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set("key1", "value1");
-    try cache.set("key1", "new_value1");
+    try cache.put("key1", "value1");
+    try cache.put("key1", "new_value1");
 
     try testing.expectEqualStrings("new_value1", cache.get("key1").?);
 }
@@ -266,7 +274,7 @@ test "Zigache - remove string key" {
     var cache: Cache([]const u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set("key1", "value1");
+    try cache.put("key1", "value1");
     try testing.expect(cache.remove("key1"));
     try testing.expect(cache.get("key1") == null);
     try testing.expect(!cache.remove("key1"));
@@ -276,9 +284,9 @@ test "Zigache - integer keys" {
     var cache: Cache(i32, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "one");
-    try cache.set(-5, "minus five");
-    try cache.set(1000, "thousand");
+    try cache.put(1, "one");
+    try cache.put(-5, "minus five");
+    try cache.put(1000, "thousand");
 
     try testing.expectEqualStrings("one", cache.get(1).?);
     try testing.expectEqualStrings("minus five", cache.get(-5).?);
@@ -295,9 +303,9 @@ test "Zigache - struct keys" {
     var cache: Cache(Point, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(.{ .x = 1, .y = 2 }, "point one-two");
-    try cache.set(.{ .x = -5, .y = -5 }, "point minus five-minus five");
-    try cache.set(.{ .x = 1000, .y = 1000 }, "point thousand-thousand");
+    try cache.put(.{ .x = 1, .y = 2 }, "point one-two");
+    try cache.put(.{ .x = -5, .y = -5 }, "point minus five-minus five");
+    try cache.put(.{ .x = 1000, .y = 1000 }, "point thousand-thousand");
 
     try testing.expectEqualStrings("point one-two", cache.get(.{ .x = 1, .y = 2 }).?);
     try testing.expectEqualStrings("point minus five-minus five", cache.get(.{ .x = -5, .y = -5 }).?);
@@ -312,9 +320,9 @@ test "Zigache - array keys" {
     var cache: Cache([3]u8, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set([3]u8{ 1, 2, 3 }, "one-two-three");
-    try cache.set([3]u8{ 4, 5, 6 }, "four-five-six");
-    try cache.set([3]u8{ 7, 8, 9 }, "seven-eight-nine");
+    try cache.put([3]u8{ 1, 2, 3 }, "one-two-three");
+    try cache.put([3]u8{ 4, 5, 6 }, "four-five-six");
+    try cache.put([3]u8{ 7, 8, 9 }, "seven-eight-nine");
 
     try testing.expectEqualStrings("one-two-three", cache.get([3]u8{ 1, 2, 3 }).?);
     try testing.expectEqualStrings("four-five-six", cache.get([3]u8{ 4, 5, 6 }).?);
@@ -333,9 +341,9 @@ test "Zigache - pointer keys" {
     var cache: Cache(*i32, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(&value1, "pointer to 0");
-    try cache.set(&value2, "pointer to 100");
-    try cache.set(&value3, "pointer to 200");
+    try cache.put(&value1, "pointer to 0");
+    try cache.put(&value2, "pointer to 100");
+    try cache.put(&value3, "pointer to 200");
 
     try testing.expectEqualStrings("pointer to 0", cache.get(&value1).?);
     try testing.expectEqualStrings("pointer to 100", cache.get(&value2).?);
@@ -356,9 +364,9 @@ test "Zigache - enum keys" {
     var cache: Cache(Color, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(.Red, "crimson");
-    try cache.set(.Green, "emerald");
-    try cache.set(.Blue, "sapphire");
+    try cache.put(.Red, "crimson");
+    try cache.put(.Green, "emerald");
+    try cache.put(.Blue, "sapphire");
 
     try testing.expectEqualStrings("crimson", cache.get(.Red).?);
     try testing.expectEqualStrings("emerald", cache.get(.Green).?);
@@ -372,9 +380,9 @@ test "Zigache - optional keys" {
     var cache: Cache(?i32, []const u8, TestConfig) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(null, "no value");
-    try cache.set(0, "zero");
-    try cache.set(-1, "negative one");
+    try cache.put(null, "no value");
+    try cache.put(0, "zero");
+    try cache.put(-1, "negative one");
 
     try testing.expectEqualStrings("no value", cache.get(null).?);
     try testing.expectEqualStrings("zero", cache.get(0).?);

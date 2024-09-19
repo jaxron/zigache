@@ -100,7 +100,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
                 if (ctx.cache.get(data.key)) |_| {
                     ctx.hits += 1;
                 } else {
-                    ctx.cache.set(data.key, data.value) catch @panic("Failed to set key");
+                    ctx.cache.put(data.key, data.value) catch @panic("Failed to set key");
                     ctx.misses += 1;
                 }
 

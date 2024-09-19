@@ -100,7 +100,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime config: Config) type 
             return null;
         }
 
-        pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
+        pub fn put(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
 
@@ -109,13 +109,14 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime config: Config) type 
                 self.evict();
             }
 
-            const node, const found_existing = try self.map.set(key, hash_code);
+            const gop = try self.map.getOrPut(key, hash_code);
+            const node = gop.value_ptr.*;
             node.update(key, value, ttl, .{
-                .queue = if (found_existing) node.data.queue else .Small,
-                .freq = if (found_existing) node.data.freq else 0,
+                .queue = if (gop.found_existing) node.data.queue else .Small,
+                .freq = if (gop.found_existing) node.data.freq else 0,
             });
 
-            if (found_existing) {
+            if (gop.found_existing) {
                 if (node.data.queue == .Ghost) {
                     // Move from Ghost to Main on re-insertion
                     node.data.queue = .Main;
@@ -211,8 +212,8 @@ test "S3FIFO - basic insert and get" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
-    try cache.set(2, "value2");
+    try cache.put(1, "value1");
+    try cache.put(2, "value2");
 
     try testing.expectEqualStrings("value1", cache.get(1).?);
     try testing.expectEqualStrings("value2", cache.get(2).?);
@@ -222,8 +223,8 @@ test "S3FIFO - overwrite existing key" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
-    try cache.set(1, "new_value1");
+    try cache.put(1, "value1");
+    try cache.put(1, "new_value1");
 
     // Check that the value has been updated
     try testing.expectEqualStrings("new_value1", cache.get(1).?);
@@ -233,7 +234,7 @@ test "S3FIFO - remove key" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
+    try cache.put(1, "value1");
 
     // Remove the key and check that it's no longer present
     try testing.expect(cache.remove(1));
@@ -248,11 +249,11 @@ test "S3FIFO - eviction and promotion" {
     defer cache.deinit();
 
     // Fill the cache
-    try cache.set(1, "value1");
-    try cache.set(2, "value2");
-    try cache.set(3, "value3");
-    try cache.set(4, "value4");
-    try cache.set(5, "value5");
+    try cache.put(1, "value1");
+    try cache.put(2, "value2");
+    try cache.put(3, "value3");
+    try cache.put(4, "value4");
+    try cache.put(5, "value5");
 
     // Access increase the frequency of 1, 2, 3, 4
     _ = cache.get(1);
@@ -261,7 +262,7 @@ test "S3FIFO - eviction and promotion" {
     _ = cache.get(4);
 
     // Insert a new key, which should evict key 1 (least frequently used )
-    try cache.set(6, "value6"); // 6 moves to small, 5 is evicted to ghost, everything else moves to main
+    try cache.put(6, "value6"); // 6 moves to small, 5 is evicted to ghost, everything else moves to main
 
     // We expect key 5 to be in the ghost cache
     try testing.expect(cache.get(1) == null);
@@ -276,10 +277,10 @@ test "S3FIFO - TTL functionality" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .{ .S3FIFO = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.setWithTTL(1, "value1", 1); // 1ms TTL
+    try cache.putWithTTL(1, "value1", 1); // 1ms TTL
     std.time.sleep(2 * std.time.ns_per_ms);
     try testing.expect(cache.get(1) == null);
 
-    try cache.setWithTTL(2, "value2", 1000); // 1s TTL
+    try cache.putWithTTL(2, "value2", 1000); // 1s TTL
     try testing.expect(cache.get(2) != null);
 }

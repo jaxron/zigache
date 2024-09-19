@@ -123,11 +123,9 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
             return self.map.getAdapted(key, HashContext.init(hash_code));
         }
 
-        /// Adds or updates a key-value pair in the map.
-        /// Returns a tuple containing:
-        /// - A pointer to the Node (either newly created or existing)
-        /// - A boolean indicating whether an existing entry was returned (true) or a new one was created (false)
-        pub fn set(self: *Self, key: K, hash_code: u64) !struct { *Node, bool } {
+        /// If an entry for the key does not exist in the map, a new node is created and inserted.
+        /// Returns a `GetOrPutResult` struct containing the node and whether it existed before.
+        pub fn getOrPut(self: *Self, key: K, hash_code: u64) !HashMapType.GetOrPutResult {
             self.checkAndRehash();
 
             // We only use a single `getOrPutAdapted` call here for a performance improvement
@@ -150,7 +148,7 @@ pub fn Map(comptime K: type, comptime V: type, comptime Data: type, comptime ttl
                 gop.value_ptr.* = node;
             }
 
-            return .{ gop.value_ptr.*, gop.found_existing };
+            return gop;
         }
 
         /// Removes a key-value pair from the map if it exists.
@@ -222,7 +220,7 @@ test "Map - init and deinit" {
     try testing.expectEqual(100, map.capacity);
 }
 
-test "Map - set and get" {
+test "Map - put and get" {
     var map: TestMap = try .init(testing.allocator, 1, 1);
     defer map.deinit();
 
@@ -231,8 +229,10 @@ test "Map - set and get" {
 
     // Insert a new entry
     {
-        const node, const found_existing = try map.set(key, hash_code);
-        try testing.expect(!found_existing);
+        const gop = try map.getOrPut(key, hash_code);
+        const node = gop.value_ptr.*;
+
+        try testing.expect(!gop.found_existing);
         node.key = key;
         node.value = 1;
     }
@@ -253,7 +253,7 @@ test "Map - remove" {
     const key = "key1";
     const hash_code = hash([]const u8, key);
 
-    _ = try map.set(key, hash_code);
+    _ = try map.getOrPut(key, hash_code);
 
     const node = map.remove(key, hash_code);
     try testing.expect(node != null);
@@ -273,8 +273,8 @@ test "Map - contains" {
     const hash_code1 = hash([]const u8, key1);
     const hash_code2 = hash([]const u8, key2);
 
-    _ = try map.set(key1, hash_code1);
-    _ = try map.set(key2, hash_code2);
+    _ = try map.getOrPut(key1, hash_code1);
+    _ = try map.getOrPut(key2, hash_code2);
 
     const node = map.remove(key2, hash_code2);
     try testing.expect(node != null);
@@ -291,7 +291,8 @@ test "Map - checkTTL" {
     const key = "key1";
     const hash_code = hash([]const u8, key);
 
-    const node, _ = try map.set(key, hash_code);
+    const gop = try map.getOrPut(key, hash_code);
+    const node = gop.value_ptr.*;
     node.* = .{
         .key = key,
         .value = 1,
@@ -315,15 +316,17 @@ test "Map - update existing entry" {
 
     // First insertion
     {
-        const node, const found_existing = try map.set(key, hash_code);
-        try testing.expect(!found_existing);
+        const gop = try map.getOrPut(key, hash_code);
+        const node = gop.value_ptr.*;
+        try testing.expect(!gop.found_existing);
         node.value = 1;
     }
 
     // Update existing entry
     {
-        const node, const found_existing = try map.set(key, hash_code);
-        try testing.expect(found_existing);
+        const gop = try map.getOrPut(key, hash_code);
+        const node = gop.value_ptr.*;
+        try testing.expect(gop.found_existing);
         node.value = 10;
     }
 

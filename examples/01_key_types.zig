@@ -27,8 +27,8 @@ fn stringKeys(allocator: std.mem.Allocator) !void {
     defer cache.deinit(); // Ensure cache resources are freed when we're done
 
     // Set key-value pairs in the cache
-    try cache.set("key1", "value1");
-    try cache.set("key2", "value2");
+    try cache.put("key1", "value1");
+    try cache.put("key2", "value2");
 
     // Retrieve a value from the cache
     if (cache.get("key1")) |value| {
@@ -47,8 +47,8 @@ fn integerKeys(allocator: std.mem.Allocator) !void {
     var cache: Cache(i32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator);
     defer cache.deinit();
 
-    try cache.set(1, "one");
-    try cache.set(2, "two");
+    try cache.put(1, "one");
+    try cache.put(2, "two");
 
     if (cache.get(1)) |value| {
         std.debug.print("Value for 1: {s}\n", .{value});
@@ -68,8 +68,8 @@ fn structKeys(allocator: std.mem.Allocator) !void {
     var cache: Cache(Point, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator);
     defer cache.deinit();
 
-    try cache.set(.{ .x = 1, .y = 2 }, "point1");
-    try cache.set(.{ .x = 3, .y = 4 }, "point2");
+    try cache.put(.{ .x = 1, .y = 2 }, "point1");
+    try cache.put(.{ .x = 3, .y = 4 }, "point2");
 
     if (cache.get(.{ .x = 1, .y = 2 })) |value| {
         std.debug.print("Value for (1,2): {s}\n", .{value});
@@ -86,8 +86,8 @@ fn arrayKeys(allocator: std.mem.Allocator) !void {
     var cache: Cache([3]u8, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator);
     defer cache.deinit();
 
-    try cache.set([3]u8{ 1, 2, 3 }, "array1");
-    try cache.set([3]u8{ 4, 5, 6 }, "array2");
+    try cache.put([3]u8{ 1, 2, 3 }, "array1");
+    try cache.put([3]u8{ 4, 5, 6 }, "array2");
 
     if (cache.get([3]u8{ 1, 2, 3 })) |value| {
         std.debug.print("Value for [1,2,3]: {s}\n", .{value});
@@ -108,8 +108,8 @@ fn pointerKeys(allocator: std.mem.Allocator) !void {
     var cache: Cache(*i32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator);
     defer cache.deinit();
 
-    try cache.set(&value1, "pointer1");
-    try cache.set(&value2, "pointer2");
+    try cache.put(&value1, "pointer1");
+    try cache.put(&value2, "pointer2");
 
     if (cache.get(&value1)) |value| {
         std.debug.print("Value for &value1: {s}\n", .{value});
@@ -129,8 +129,8 @@ fn enumKeys(allocator: std.mem.Allocator) !void {
     var cache: Cache(Color, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator);
     defer cache.deinit();
 
-    try cache.set(.Red, "red");
-    try cache.set(.Green, "green");
+    try cache.put(.Red, "red");
+    try cache.put(.Green, "green");
 
     if (cache.get(.Red)) |value| {
         std.debug.print("Value for Red: {s}\n", .{value});
@@ -147,8 +147,8 @@ fn optionalKeys(allocator: std.mem.Allocator) !void {
     var cache: Cache(?i32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(allocator);
     defer cache.deinit();
 
-    try cache.set(null, "null_value");
-    try cache.set(42, "forty_two");
+    try cache.put(null, "null_value");
+    try cache.put(42, "forty_two");
 
     if (cache.get(null)) |value| {
         std.debug.print("Value for null: {s}\n", .{value});

@@ -103,18 +103,19 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime config: Config) type
             return null;
         }
 
-        pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
+        pub fn put(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
 
-            const node, const found_existing = try self.map.set(key, hash_code);
+            const gop = try self.map.getOrPut(key, hash_code);
+            const node = gop.value_ptr.*;
             node.update(key, value, ttl, .{
                 // New items always start in the window region
-                .region = if (found_existing) node.data.region else .Window,
+                .region = if (gop.found_existing) node.data.region else .Window,
             });
 
             self.sketch.increment(hash_code);
-            if (found_existing) {
+            if (gop.found_existing) {
                 self.updateOnHit(node);
             } else {
                 self.insertNew(node);
@@ -202,8 +203,8 @@ test "TinyLFU - basic insert and get" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
-    try cache.set(2, "value2");
+    try cache.put(1, "value1");
+    try cache.put(2, "value2");
 
     try testing.expectEqualStrings("value1", cache.get(1).?);
     try testing.expectEqualStrings("value2", cache.get(2).?);
@@ -213,8 +214,8 @@ test "TinyLFU - overwrite existing key" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
-    try cache.set(1, "new_value1");
+    try cache.put(1, "value1");
+    try cache.put(1, "new_value1");
 
     // Check that the value has been updated
     try testing.expectEqualStrings("new_value1", cache.get(1).?);
@@ -224,7 +225,7 @@ test "TinyLFU - remove key" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
+    try cache.put(1, "value1");
 
     // Remove the key and check that it's no longer present
     try testing.expect(cache.remove(1));
@@ -239,14 +240,14 @@ test "TinyLFU - eviction and promotion" {
     defer cache.deinit();
 
     // Fill the cache
-    try cache.set(1, "value1"); // 1 moves to window
-    try cache.set(2, "value2"); // 2 moves to window, 1 moves to probationary
+    try cache.put(1, "value1"); // 1 moves to window
+    try cache.put(2, "value2"); // 2 moves to window, 1 moves to probationary
     _ = cache.get(1); // 1 moves to protected
-    try cache.set(3, "value3"); // 3 moves to window, 2 moves to probationary
+    try cache.put(3, "value3"); // 3 moves to window, 2 moves to probationary
     _ = cache.get(2); // 2 moves to protected
-    try cache.set(4, "value4"); // 4 moves to window, 3 moves to probationary
+    try cache.put(4, "value4"); // 4 moves to window, 3 moves to probationary
     _ = cache.get(3); // 3 moves to protected
-    try cache.set(5, "value5"); // 5 moves to window, 4 moves to probationary
+    try cache.put(5, "value5"); // 5 moves to window, 4 moves to probationary
 
     // Access 4 multiple times to increase its frequency
     _ = cache.get(4);
@@ -254,7 +255,7 @@ test "TinyLFU - eviction and promotion" {
     _ = cache.get(4);
 
     // Insert a new key, which should evict the least frequently used key
-    try cache.set(6, "value6"); // 6 moves to window, 5 is compared with 4, 4 moves to protected
+    try cache.put(6, "value6"); // 6 moves to window, 5 is compared with 4, 4 moves to protected
 
     // We expect key 5 to be evicted due to lower frequency
     try testing.expect(cache.get(1) != null);
@@ -269,10 +270,10 @@ test "TinyLFU - TTL functionality" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .{ .TinyLFU = .{} } }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.setWithTTL(1, "value1", 1); // 1ms TTL
+    try cache.putWithTTL(1, "value1", 1); // 1ms TTL
     std.time.sleep(2 * std.time.ns_per_ms);
     try testing.expect(cache.get(1) == null);
 
-    try cache.setWithTTL(2, "value2", 1000); // 1s TTL
+    try cache.putWithTTL(2, "value2", 1000); // 1s TTL
     try testing.expect(cache.get(2) != null);
 }

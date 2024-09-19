@@ -73,14 +73,15 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime config: Config) type {
             return null;
         }
 
-        pub fn set(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
+        pub fn put(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
 
-            const node, const found_existing = try self.map.set(key, hash_code);
+            const gop = try self.map.getOrPut(key, hash_code);
+            const node = gop.value_ptr.*;
             node.update(key, value, ttl, .{ .visited = false });
 
-            if (!found_existing) {
+            if (!gop.found_existing) {
                 if (self.map.count() > self.map.capacity) self.evict();
                 // Add new items to the front of the list
                 self.list.prepend(node);
@@ -133,8 +134,8 @@ test "SIEVE - basic insert and get" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
-    try cache.set(2, "value2");
+    try cache.put(1, "value1");
+    try cache.put(2, "value2");
 
     try testing.expectEqualStrings("value1", cache.get(1).?);
     try testing.expectEqualStrings("value2", cache.get(2).?);
@@ -144,8 +145,8 @@ test "SIEVE - overwrite existing key" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 2, .policy = .SIEVE }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
-    try cache.set(1, "new_value1");
+    try cache.put(1, "value1");
+    try cache.put(1, "new_value1");
 
     // Check that the value has been updated
     try testing.expectEqualStrings("new_value1", cache.get(1).?);
@@ -155,7 +156,7 @@ test "SIEVE - remove key" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .policy = .SIEVE }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
+    try cache.put(1, "value1");
 
     // Remove the key and check that it's no longer present
     try testing.expect(cache.remove(1));
@@ -169,16 +170,16 @@ test "SIEVE - eviction" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 3, .policy = .SIEVE }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.set(1, "value1");
-    try cache.set(2, "value2");
-    try cache.set(3, "value3");
+    try cache.put(1, "value1");
+    try cache.put(2, "value2");
+    try cache.put(3, "value3");
 
     // Access key1 and key3 to mark them as visited
     _ = cache.get(1);
     _ = cache.get(3);
 
     // Insert a new key, which should evict key2 (unvisited)
-    try cache.set(4, "value4");
+    try cache.put(4, "value4");
 
     // Check that key1, key3, and key4 are still in the cache
     try testing.expect(cache.get(1) != null);
@@ -191,10 +192,10 @@ test "SIEVE - TTL functionality" {
     var cache: zigache.Cache(u32, []const u8, .{ .cache_size = 1, .ttl_enabled = true, .policy = .SIEVE }) = try .init(testing.allocator);
     defer cache.deinit();
 
-    try cache.setWithTTL(1, "value1", 1); // 1ms TTL
+    try cache.putWithTTL(1, "value1", 1); // 1ms TTL
     std.time.sleep(2 * std.time.ns_per_ms);
     try testing.expect(cache.get(1) == null);
 
-    try cache.setWithTTL(2, "value2", 1000); // 1s TTL
+    try cache.putWithTTL(2, "value2", 1000); // 1s TTL
     try testing.expect(cache.get(2) != null);
 }
