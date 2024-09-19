@@ -1,6 +1,6 @@
 <h1 align="center">
     <picture>
-      <img alt="Zigache" src="./assets/images/zigache_logo.png" style="min-width: 200px; max-width: 360px; width: 100%;">
+      <img width="300" alt="Zigache" src="./assets/images/zigache_logo.png">
     </picture>
   <br>
   <a href="https://github.com/jaxron/zigache/blob/main/LICENSE.md">
@@ -108,10 +108,10 @@ To use Zigache in your project, follow these steps:
         const allocator = gpa.allocator();
     
         // Create a cache with string keys and values
-        var cache: Cache([]const u8, []const u8, .{
+        var cache: Cache([]const u8, []const u8, .{}) = try .init(allocator, .{
             .cache_size = 1,
             .policy = .SIEVE,
-        }) = try .init(allocator, .{});
+        });
         defer cache.deinit();
     
         // your code...
@@ -138,13 +138,14 @@ Zigache offers flexible configuration options to adjust the cache to your needs:
 
 ```zig
 var cache: Cache([]const u8, []const u8, .{
+    .thread_safety = true, // Enable thread safety for multi-threaded environments
+    .ttl_enabled = true,  // Enable Time-To-Live (TTL) functionality
+}) = try .init(allocator, .{
     .cache_size = 10000,   // Maximum number of items the cache can store
     .pool_size = 1000,     // Pre-allocated nodes to optimize performance
     .shard_count = 16,     // Number of shards for concurrent access handling
-    .thread_safety = true, // Enable thread safety for multi-threaded environments
-    .ttl_enabled = false,  // Enable Time-To-Live (TTL) functionality
     .policy = .SIEVE,      // Eviction policy in use
-}) = try .init(allocator, .{});
+});
 ```
 
 > For more detailed information, refer to the [full documentation](https://jaxron.me/zigache/).
