@@ -33,14 +33,15 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption(?bool, "trace", b.option(bool, "trace", "Run trace benchmarks | Default: false"));
     options.addOption(?[]const u8, "mode", b.option([]const u8, "mode", "Set the benchmark mode | Default: single"));
+    options.addOption(?[]const u8, "policy", b.option([]const u8, "policy", "Set the cache policy | Default: (all)"));
     options.addOption(?u32, "cache_size", b.option(u32, "cache-size", "Set the total cache size | Default: 10_000"));
-    options.addOption(?u32, "pool_size", b.option(u32, "pool-size", "Set the number of nodes to pre-allocate | Default: same as cache size"));
+    options.addOption(?u32, "pool_size", b.option(u32, "pool-size", "Set the number of nodes to pre-allocate | Default: (same as cache size)"));
     options.addOption(?u16, "shard_count", b.option(u16, "shards", "Set the shard count | Default: 1"));
-    options.addOption(?u32, "num_keys", b.option(u32, "keys", "Set the number of sample keys | Default: 32 * cache size"));
+    options.addOption(?u32, "num_keys", b.option(u32, "keys", "Set the number of sample keys | Default: 1_000_000"));
     options.addOption(?u8, "num_threads", b.option(u8, "threads", "Set the number of threads | Default: 4"));
-    options.addOption(?f64, "zipf", b.option(f64, "zipf", "Set the zipfian distribution | Default: 0.7"));
-    options.addOption(?u64, "duration_ms", b.option(u64, "duration", "Set the duration in milliseconds | Default: 60_000"));
-    options.addOption(?u64, "max_ops", b.option(u64, "ops", "Set the maximum number of operations | Default: not set"));
+    options.addOption(?f64, "zipf", b.option(f64, "zipf", "Set the zipfian distribution | Default: 1.0"));
+    options.addOption(?u64, "duration_ms", b.option(u64, "duration", "Set the duration in milliseconds | Default: 10_000"));
+    options.addOption(?u64, "max_ops", b.option(u64, "ops", "Set the maximum number of operations | Default: (not set)"));
 
     const exe = b.addExecutable(.{
         .name = "zigache-benchmark",
@@ -104,7 +105,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .target = target,
     });
-    lib_test.root_module.addImport("zigache", zigache_mod);
     const run_test = b.addRunArtifact(lib_test);
 
     const bench_test = b.addTest(.{

@@ -23,6 +23,7 @@ pub const StopCondition = union(enum) {
 pub const Config = struct {
     execution_mode: ExecutionMode,
     stop_condition: StopCondition,
+    policy: ?[]const u8,
     cache_size: u32,
     pool_size: ?u32,
     shard_count: u16,

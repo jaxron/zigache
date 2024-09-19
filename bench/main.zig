@@ -86,12 +86,16 @@ pub fn runTrace(allocator: Allocator, keys: []utils.Sample) !void {
 }
 
 fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []utils.Sample) ![]BenchmarkResult {
-    const policies = comptime std.meta.fields(PolicyConfig);
-    var results = try allocator.alloc(BenchmarkResult, policies.len);
+    const policies = std.meta.fields(PolicyConfig);
+    const num_policies = if (config.policy) |_| 1 else policies.len;
+
+    var results = try allocator.alloc(BenchmarkResult, num_policies);
+    errdefer allocator.free(results);
 
     try printBenchmarkHeader(config);
-    inline for (policies, 0..) |policy, i| {
-        const policy_config = @unionInit(PolicyConfig, policy.name, .{});
+    inline for (0..num_policies) |i| {
+        const policy_name = if (config.policy) |p| p else policies[i].name;
+        const policy_config = @unionInit(PolicyConfig, policy_name, .{});
         results[i] = try Benchmark(config, policy_config).bench(allocator, keys);
     }
 
@@ -134,10 +138,11 @@ fn getConfig(cache_size: u32) utils.Config {
     return .{
         .execution_mode = mode,
         .stop_condition = condition,
+        .policy = opts.policy,
         .cache_size = cache_size,
         .pool_size = opts.pool_size,
         .shard_count = opts.shard_count orelse 64,
-        .num_keys = opts.num_keys orelse 1000000,
+        .num_keys = opts.num_keys orelse 1_000_000,
         .num_threads = if (mode == .multi) opts.num_threads orelse 4 else 1,
         .zipf = opts.zipf orelse 1.0,
     };

@@ -95,7 +95,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
 
                 // Perform cache operation
                 const data = ctx.keys[i % ctx.keys.len];
-                const op_start_time = timer.read();
+                timer.reset();
 
                 if (ctx.cache.get(data.key)) |_| {
                     ctx.hits += 1;
@@ -104,8 +104,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
                     ctx.misses += 1;
                 }
 
-                const op_time = timer.read() - op_start_time;
-                ctx.run_time += op_time;
+                ctx.run_time += timer.lap();
             }
         }
 
