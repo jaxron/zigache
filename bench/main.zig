@@ -8,25 +8,63 @@ const Zipfian = @import("Zipfian.zig");
 const Allocator = std.mem.Allocator;
 const PolicyConfig = zigache.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
-const TraceBenchmarkResult = utils.TraceBenchmarkResult;
+const ReplayBenchmarkResult = utils.ReplayBenchmarkResult;
+
+const keys_file = "benchmark_keys.bin";
+
+// Default configuration values
+const default_cache_size: u32 = 10_000;
+const default_pool_size: ?u32 = null;
+const default_num_keys: u32 = 1_000_000;
+const default_shard_count: u16 = 64;
+const default_num_threads: u8 = 4;
+const default_zipf: f64 = 1.0;
+const default_duration_ms: u64 = 10000;
 
 pub fn main() !void {
     var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const keys = try generateKeys(allocator);
+    const keys = if (opts.replay orelse false) try loadOrGenerateKeys(allocator) else try generateKeys(allocator);
     defer allocator.free(keys);
 
-    if (opts.trace orelse false)
-        try runTrace(allocator, keys)
+    if (opts.custom orelse false)
+        try runCustom(allocator, keys)
     else
-        try runNormal(allocator, keys);
+        try runDefault(allocator, keys);
+
+    try saveKeys(keys);
+}
+
+fn loadOrGenerateKeys(allocator: Allocator) ![]utils.Sample {
+    const file = std.fs.cwd().openFile(keys_file, .{}) catch {
+        return generateKeys(allocator);
+    };
+    defer file.close();
+
+    var gzip_stream = std.compress.gzip.decompressor(file.reader());
+    const file_content = gzip_stream.reader().readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
+        if (err == error.EndOfStream) {
+            std.debug.print("File {s} is corrupted. Please delete it and try again.\n", .{keys_file});
+        }
+        return err;
+    };
+    defer allocator.free(file_content);
+
+    const num_keys = @divExact(file_content.len, @sizeOf(utils.Sample));
+    const keys = try allocator.alloc(utils.Sample, num_keys);
+    errdefer allocator.free(keys);
+
+    @memcpy(std.mem.sliceAsBytes(keys), file_content);
+
+    std.debug.print("Replaying {d} keys from file {s}\n", .{ num_keys, keys_file });
+    return keys;
 }
 
 fn generateKeys(allocator: Allocator) ![]utils.Sample {
-    const num_keys = opts.num_keys orelse 1_000_000;
-    const s = opts.zipf orelse 1.0;
+    const num_keys = opts.num_keys orelse default_num_keys;
+    const s = opts.zipf orelse default_zipf;
 
     var zipf_distribution: Zipfian = try .init(num_keys, s);
     var prng: std.Random.DefaultPrng = .init(blk: {
@@ -44,25 +82,24 @@ fn generateKeys(allocator: Allocator) ![]utils.Sample {
         sample.* = .{ .key = value, .value = value };
     }
 
+    std.debug.print("Generated {d} keys with Zipfian distribution (s={d:.2})\n", .{ num_keys, s });
     return keys;
 }
 
-pub fn runNormal(allocator: Allocator, keys: []utils.Sample) !void {
-    const config = comptime getConfig(opts.cache_size orelse 10_000);
-    const benchmark = try runBenchmark(config, allocator, keys);
-    defer allocator.free(benchmark);
+fn saveKeys(keys: []const utils.Sample) !void {
+    const file = try std.fs.cwd().createFile(keys_file, .{});
+    defer file.close();
 
-    const stdout = std.io.getStdOut().writer();
-    try stdout.writeAll("\r");
-    try stdout.writeByteNTimes(' ', 120);
-    try stdout.writeAll("\r");
+    var gzip_stream = try std.compress.gzip.compressor(file.writer(), .{});
+    try gzip_stream.writer().writeAll(std.mem.sliceAsBytes(keys));
+    try gzip_stream.finish();
 
-    try utils.printResults(allocator, benchmark);
+    std.debug.print("Generated keys have been saved to file {s}\n", .{keys_file});
 }
 
-pub fn runTrace(allocator: Allocator, keys: []utils.Sample) !void {
+pub fn runDefault(allocator: Allocator, keys: []utils.Sample) !void {
     const cache_sizes = comptime utils.generateCacheSizes();
-    var results: [cache_sizes.len]TraceBenchmarkResult = undefined;
+    var results: [cache_sizes.len]ReplayBenchmarkResult = undefined;
 
     inline for (cache_sizes, 0..) |cache_size, i| {
         const config = comptime getConfig(cache_size);
@@ -85,6 +122,19 @@ pub fn runTrace(allocator: Allocator, keys: []utils.Sample) !void {
     std.debug.print("\rBenchmark results have been written to CSV files{s}\n", .{" " ** 30});
 }
 
+pub fn runCustom(allocator: Allocator, keys: []utils.Sample) !void {
+    const config = comptime getConfig(opts.cache_size orelse default_cache_size);
+    const benchmark = try runBenchmark(config, allocator, keys);
+    defer allocator.free(benchmark);
+
+    const stdout = std.io.getStdOut().writer();
+    try stdout.writeAll("\r");
+    try stdout.writeByteNTimes(' ', 120);
+    try stdout.writeAll("\r");
+
+    try utils.printResults(allocator, benchmark);
+}
+
 fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []utils.Sample) ![]BenchmarkResult {
     const policies = std.meta.fields(PolicyConfig);
     const num_policies = if (config.policy) |_| 1 else policies.len;
@@ -92,7 +142,7 @@ fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []uti
     var results = try allocator.alloc(BenchmarkResult, num_policies);
     errdefer allocator.free(results);
 
-    try printBenchmarkHeader(config);
+    try printBenchmarkHeader(config, keys.len);
     inline for (0..num_policies) |i| {
         const policy_name = if (config.policy) |p| p else policies[i].name;
         const policy_config = @unionInit(PolicyConfig, policy_name, .{});
@@ -102,7 +152,7 @@ fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []uti
     return results;
 }
 
-fn printBenchmarkHeader(comptime config: utils.Config) !void {
+fn printBenchmarkHeader(comptime config: utils.Config, num_keys: usize) !void {
     const stdout = std.io.getStdOut().writer();
 
     // Clear the line and create some space
@@ -118,10 +168,10 @@ fn printBenchmarkHeader(comptime config: utils.Config) !void {
     }
 
     try stdout.print("keys={d} cache-size={d} pool-size={d} zipf={d:.2}", .{
-        config.num_keys,
+        num_keys,
         config.cache_size,
         config.pool_size orelse config.cache_size,
-        opts.zipf orelse 1.0,
+        opts.zipf orelse default_zipf,
     });
 
     // Print multi-threaded specific configuration
@@ -141,10 +191,9 @@ fn getConfig(cache_size: u32) utils.Config {
         .policy = opts.policy,
         .cache_size = cache_size,
         .pool_size = opts.pool_size,
-        .shard_count = opts.shard_count orelse 64,
-        .num_keys = opts.num_keys orelse 1_000_000,
-        .num_threads = if (mode == .multi) opts.num_threads orelse 4 else 1,
-        .zipf = opts.zipf orelse 1.0,
+        .shard_count = opts.shard_count orelse default_shard_count,
+        .num_threads = if (mode == .multi) opts.num_threads orelse default_num_threads else 1,
+        .zipf = opts.zipf orelse default_zipf,
     };
 }
 
@@ -161,7 +210,7 @@ fn getStopCondition() utils.StopCondition {
     else if (opts.max_ops) |ops|
         .{ .operations = ops }
     else
-        .{ .duration = 10000 };
+        .{ .duration = default_duration_ms };
 }
 
 // Ensure that the zipfian module is included in the build for tests

@@ -27,7 +27,6 @@ pub const Config = struct {
     cache_size: u32,
     pool_size: ?u32,
     shard_count: u16,
-    num_keys: u32,
     num_threads: u8,
     zipf: f64,
 };
@@ -61,7 +60,7 @@ pub const BenchmarkResult = struct {
     }
 };
 
-pub const TraceBenchmarkResult = struct {
+pub const ReplayBenchmarkResult = struct {
     cache_size: u32,
     fifo: BenchmarkResult,
     lru: BenchmarkResult,
@@ -84,13 +83,13 @@ pub const BenchmarkMetric = enum {
     }
 };
 
-pub fn generateCSVs(comptime execution_type: []const u8, results: []const TraceBenchmarkResult) !void {
+pub fn generateCSVs(comptime execution_type: []const u8, results: []const ReplayBenchmarkResult) !void {
     try generateCSV("benchmark_nsop_" ++ execution_type ++ ".csv", .ns_per_op, results);
     try generateCSV("benchmark_hitrate_" ++ execution_type ++ ".csv", .hit_rate, results);
     try generateCSV("benchmark_opspersecond_" ++ execution_type ++ ".csv", .ops_per_second, results);
 }
 
-pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []const TraceBenchmarkResult) !void {
+pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []const ReplayBenchmarkResult) !void {
     const file = try std.fs.cwd().createFile(filename, .{});
     defer file.close();
 
@@ -203,4 +202,11 @@ fn printRow(writer: anytype, fields: []const []const u8, widths: []const usize) 
         try writer.writeByteNTimes(' ', width - field.len + 1);
     }
     try writer.writeAll("|\n");
+}
+
+pub fn fileExists(path: []const u8) bool {
+    std.fs.cwd().access(path, .{}) catch {
+        return false;
+    };
+    return true;
 }

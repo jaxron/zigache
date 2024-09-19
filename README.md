@@ -162,7 +162,7 @@ This benchmark uses a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%
 ## Benchmark Parameters
 
 ```sh
-zig build bench -Doptimize=ReleaseFast -Dtrace=true
+zig build bench -Doptimize=ReleaseFast
 ```
 
 ## Results
