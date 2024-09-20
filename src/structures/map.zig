@@ -214,9 +214,9 @@ pub fn Map(
             return false;
         }
 
-        /// Rehash when tombstones reach 25% of the map's capacity. It's frequent enough
-        /// to prevent significant performance degradation, and not so frequent that
-        /// we waste time on unnecessary rehashes.
+        /// Rehash when number of tombstones reaches the configured maximum load. It's
+        /// frequent enough to prevent significant performance degradation, and not so
+        /// frequent that we waste time on unnecessary rehashes.
         ///
         /// This approach helps mitigate the impact of tombstones in delete-heavy scenarios.
         /// By rehashing, we're actively maintaining the hash table's performance, ensuring
@@ -224,7 +224,8 @@ pub fn Map(
         ///
         /// For more information, view Zig's issue #17851.
         inline fn checkAndRehash(self: *Self) void {
-            if (self.tombstones >= self.capacity / 4) {
+            const max_load = (self.map.size * max_load_percentage) / 100;
+            if (self.tombstones >= max_load) {
                 self.map.rehash(self.ctx);
                 self.tombstones = 0;
             }
