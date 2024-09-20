@@ -21,13 +21,14 @@ const default_shard_count: u16 = 1;
 const default_num_threads: u8 = 1;
 const default_zipf: f64 = 0.9;
 const default_duration_ms: u64 = 10_000;
+const default_replay: bool = true;
 
 pub fn main() !void {
     var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const keys = if (opts.replay orelse false) try loadOrGenerateKeys(allocator) else try generateKeys(allocator);
+    const keys = if (opts.replay orelse default_replay) try loadOrGenerateKeys(allocator) else try generateKeys(allocator);
     defer allocator.free(keys);
 
     if (opts.custom orelse false)
