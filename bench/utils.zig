@@ -120,14 +120,6 @@ pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []con
     }
 }
 
-pub fn generateCacheSizes() [40]u32 {
-    var sizes: [40]u32 = undefined;
-    for (0..40) |i| {
-        sizes[i] = (i + 1) * 5000;
-    }
-    return sizes;
-}
-
 pub fn parseResults(policy: PolicyConfig, run_time: u64, bytes: usize, hits: u64, misses: u64) BenchmarkResult {
     const total_ops = hits + misses;
     const hit_rate = @as(f64, @floatFromInt(hits)) / @as(f64, @floatFromInt(total_ops));

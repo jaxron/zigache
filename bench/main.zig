@@ -13,6 +13,7 @@ const ReplayBenchmarkResult = utils.ReplayBenchmarkResult;
 const keys_file = "benchmark_keys.bin";
 
 // Default configuration values
+const default_auto_sizes = "40:5000";
 const default_cache_size: u32 = 10_000;
 const default_pool_size: ?u32 = null;
 const default_num_keys: u32 = 1_000_000;
@@ -98,7 +99,7 @@ fn saveKeys(keys: []const utils.Sample) !void {
 }
 
 pub fn runDefault(allocator: Allocator, keys: []utils.Sample) !void {
-    const cache_sizes = comptime utils.generateCacheSizes();
+    const cache_sizes = comptime generateCacheSizes();
     var results: [cache_sizes.len]ReplayBenchmarkResult = undefined;
 
     inline for (cache_sizes, 0..) |cache_size, i| {
@@ -133,6 +134,24 @@ pub fn runCustom(allocator: Allocator, keys: []utils.Sample) !void {
     try stdout.writeAll("\r");
 
     try utils.printResults(allocator, benchmark);
+}
+
+/// Generate cache sizes based on the configuration.
+pub fn generateCacheSizes() []u32 {
+    // The format is "count:step" where count is the number of cache sizes to generate
+    // and step is the increment value for each consecutive cache size.
+    const str = opts.auto orelse default_auto_sizes;
+
+    var iter = std.mem.splitScalar(u8, str, ':');
+    const count = std.fmt.parseUnsigned(u32, iter.next().?, 10) catch @compileError("Invalid count value");
+    const step = std.fmt.parseUnsigned(u32, iter.next().?, 10) catch @compileError("Invalid step value");
+
+    var sizes: [count]u32 = undefined;
+    for (0..count) |i| {
+        sizes[i] = (i + 1) * step;
+    }
+
+    return &sizes;
 }
 
 fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []utils.Sample) ![]BenchmarkResult {

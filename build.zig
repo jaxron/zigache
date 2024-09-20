@@ -33,6 +33,7 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption(?bool, "custom", b.option(bool, "custom", "Run benchmark with custom options (default: false)"));
     options.addOption(?bool, "replay", b.option(bool, "replay", "Save/load keys for consistent benchmarks (default: false)"));
+    options.addOption(?[]const u8, "auto", b.option([]const u8, "auto", "Run benchmark with automatic steps (default: 20:5000)"));
     options.addOption(?[]const u8, "mode", b.option([]const u8, "mode", "Benchmark mode: 'single' or 'multi' (default: single)"));
     options.addOption(?[]const u8, "policy", b.option([]const u8, "policy", "Cache policy: FIFO, LRU, TinyLFU, SIEVE, S3FIFO (default: all)"));
     options.addOption(?u32, "cache_size", b.option(u32, "cache-size", "Max items in cache (default: 10000)"));
