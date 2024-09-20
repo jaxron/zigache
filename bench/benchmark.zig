@@ -4,6 +4,7 @@ const utils = @import("utils.zig");
 
 const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
 const BenchmarkResult = utils.BenchmarkResult;
+const IntermediateResults = utils.IntermediateResults;
 const Config = utils.Config;
 
 pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
@@ -16,16 +17,10 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
         const ThreadContext = struct {
             cache: *Cache,
             keys: []utils.Sample,
-            run_time: u64 = 0,
+            get_time: u64 = 0,
+            set_time: u64 = 0,
             hits: u64 = 0,
             misses: u64 = 0,
-        };
-
-        const IntermediateResults = struct {
-            total_ops: u64,
-            total_run_time: u64,
-            total_hits: u64,
-            total_misses: u64,
         };
 
         pub fn bench(allocator: std.mem.Allocator, keys: []utils.Sample) !BenchmarkResult {
@@ -63,7 +58,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
 
             // Aggregate and return results
             const results = aggregateResults(contexts);
-            return utils.parseResults(policy, results.total_run_time, gpa.total_requested_bytes, results.total_hits, results.total_misses);
+            return utils.parseResults(policy, results, gpa.total_requested_bytes);
         }
 
         fn initThreadContexts(allocator: std.mem.Allocator, keys: []utils.Sample, cache: *Cache) ![]ThreadContext {
@@ -90,22 +85,23 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
             while (true) : (i += 1) {
                 // Stop benchmarking if the stop condition is met
                 if (switch (opts.stop_condition) {
-                    .duration => |ms| ctx.run_time >= ms * std.time.ns_per_ms,
+                    .duration => |ms| (ctx.get_time + ctx.set_time) >= ms * std.time.ns_per_ms,
                     .operations => |max_ops| ctx.hits + ctx.misses >= max_ops / opts.num_threads,
                 }) break;
 
                 // Perform cache operation
                 const data = ctx.keys[i % ctx.keys.len];
-                timer.reset();
 
+                timer.reset();
                 if (ctx.cache.get(data.key)) |_| {
+                    ctx.get_time += timer.lap();
                     ctx.hits += 1;
                 } else {
+                    ctx.get_time += timer.lap();
                     ctx.cache.put(data.key, data.value) catch @panic("Failed to set key");
+                    ctx.set_time += timer.lap();
                     ctx.misses += 1;
                 }
-
-                ctx.run_time += timer.lap();
             }
         }
 
@@ -114,10 +110,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
                 const results = aggregateResults(contexts.*);
 
                 // Stop monitoring if the stop condition is met
-                if (switch (opts.stop_condition) {
-                    .duration => |ms| results.total_run_time >= ms * opts.num_threads * std.time.ns_per_ms,
-                    .operations => |max_ops| results.total_ops >= max_ops,
-                }) break;
+                if (results.progress >= 1.0) break;
 
                 try printProgress(stdout, results);
                 std.time.sleep(10 * std.time.ns_per_ms);
@@ -125,46 +118,50 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
         }
 
         fn aggregateResults(contexts: []ThreadContext) IntermediateResults {
-            var results = IntermediateResults{
-                .total_ops = 0,
-                .total_run_time = 0,
-                .total_hits = 0,
-                .total_misses = 0,
-            };
-
+            var results: IntermediateResults = .empty;
             for (contexts) |ctx| {
                 results.total_ops += ctx.hits + ctx.misses;
-                results.total_run_time += ctx.run_time;
+                results.total_get_time += ctx.get_time;
+                results.total_set_time += ctx.set_time;
                 results.total_hits += ctx.hits;
                 results.total_misses += ctx.misses;
             }
+
+            const total_time = results.total_get_time + results.total_set_time;
+            results.hit_rate = @as(f64, @floatFromInt(results.total_hits)) / @as(f64, @floatFromInt(results.total_ops)) * 100.0;
+            results.ops_per_second = @as(f64, @floatFromInt(results.total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(total_time));
+            results.ns_per_op = @as(f64, @floatFromInt(total_time)) / @as(f64, @floatFromInt(results.total_ops));
+            results.avg_get_time = @as(f64, @floatFromInt(results.total_get_time)) / @as(f64, @floatFromInt(results.total_ops));
+            results.avg_set_time = @as(f64, @floatFromInt(results.total_set_time)) / @as(f64, @floatFromInt(results.total_misses));
+            results.progress = switch (opts.stop_condition) {
+                .duration => |ms| @as(f64, @floatFromInt(total_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)),
+                .operations => |max_ops| @as(f64, @floatFromInt(results.total_ops)) / @as(f64, @floatFromInt(max_ops)),
+            };
+
             return results;
         }
 
         fn printProgress(stdout: std.fs.File.Writer, results: IntermediateResults) !void {
-            const hit_rate = @as(f64, @floatFromInt(results.total_hits)) / @as(f64, @floatFromInt(results.total_ops)) * 100.0;
-            const ops_per_second = @as(f64, @floatFromInt(results.total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(results.total_run_time));
-            const ns_per_op = @as(f64, @floatFromInt(results.total_run_time)) / @as(f64, @floatFromInt(results.total_ops));
-            const progress = switch (opts.stop_condition) {
-                .duration => |ms| @as(f64, @floatFromInt(results.total_run_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)),
-                .operations => |max_ops| @as(f64, @floatFromInt(results.total_ops)) / @as(f64, @floatFromInt(max_ops)),
-            };
-
             const bar_width = 30;
-            const filled_width = @as(usize, @intFromFloat(progress * @as(f64, bar_width)));
+            const filled_width = @as(usize, @intFromFloat(results.progress * @as(f64, bar_width)));
             const empty_width = bar_width - filled_width;
 
+            try stdout.print("\r{s}\r", .{" " ** 150});
             try stdout.print("\r\x1b[2K\x1b[1m{s:<6}\x1b[0m [", .{@tagName(policy)}); // Bold policy name, left-aligned, 6-char field
             try stdout.print("\x1b[42m", .{}); // Set background color to green
             try stdout.writeByteNTimes(' ', filled_width);
             try stdout.print("\x1b[0m", .{}); // Reset color
             try stdout.writeByteNTimes(' ', empty_width);
-            try stdout.print("] \x1b[1m{d:>5.1}%\x1b[0m | ", .{progress * 100}); // Bold percentage, right-aligned, 5-char field, 1 decimal place
-            try stdout.print("Hit Rate: {d:>5.2}% | ops/s: {d:>9.2} | ns/op: {d:>7.2}", .{
-                hit_rate,
-                ops_per_second,
-                ns_per_op,
+            try stdout.print("] \x1b[1m{d:>5.1}%\x1b[0m | ", .{results.progress * 100}); // Bold percentage, right-aligned, 5-char field, 1 decimal place
+            try stdout.print("Hit Rate: {d:>5.2}% | ops/s: {d:>9.2} | ns/op: {d:>7.2} | ", .{
+                results.hit_rate,
+                results.ops_per_second,
+                results.ns_per_op,
             }); // Right-aligned with 2 decimal places
+            try stdout.print("Avg Get: {d:>7.2}ns | Avg Set: {d:>7.2}ns", .{
+                results.avg_get_time,
+                results.avg_set_time,
+            }); // Added average get and set times
         }
     };
 }

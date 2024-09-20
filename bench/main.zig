@@ -13,14 +13,14 @@ const ReplayBenchmarkResult = utils.ReplayBenchmarkResult;
 const keys_file = "benchmark_keys.bin";
 
 // Default configuration values
-const default_auto_sizes = "40:5000";
-const default_cache_size: u32 = 10_000;
+const default_auto_sizes = "20:50000";
+const default_cache_size: u32 = 100_000;
 const default_pool_size: ?u32 = null;
-const default_num_keys: u32 = 1_000_000;
-const default_shard_count: u16 = 64;
-const default_num_threads: u8 = 4;
-const default_zipf: f64 = 1.0;
-const default_duration_ms: u64 = 10000;
+const default_num_keys: u32 = 10_000_000;
+const default_shard_count: u16 = 1;
+const default_num_threads: u8 = 1;
+const default_zipf: f64 = 0.9;
+const default_duration_ms: u64 = 10_000;
 
 pub fn main() !void {
     var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
@@ -47,7 +47,7 @@ fn loadOrGenerateKeys(allocator: Allocator) ![]utils.Sample {
     var gzip_stream = std.compress.gzip.decompressor(file.reader());
     const file_content = gzip_stream.reader().readAllAlloc(allocator, std.math.maxInt(usize)) catch |err| {
         if (err == error.EndOfStream) {
-            std.debug.print("File {s} is corrupted. Please delete it and try again.\n", .{keys_file});
+            std.debug.panic("File {s} is corrupted. Please delete it and try again.\n", .{keys_file});
         }
         return err;
     };
@@ -59,7 +59,7 @@ fn loadOrGenerateKeys(allocator: Allocator) ![]utils.Sample {
 
     @memcpy(std.mem.sliceAsBytes(keys), file_content);
 
-    std.debug.print("Replaying {d} keys from file {s}\n", .{ num_keys, keys_file });
+    try std.io.getStdOut().writer().print("Replaying {d} keys from file {s}\n", .{ num_keys, keys_file });
     return keys;
 }
 
@@ -83,7 +83,7 @@ fn generateKeys(allocator: Allocator) ![]utils.Sample {
         sample.* = .{ .key = value, .value = value };
     }
 
-    std.debug.print("Generated {d} keys with Zipfian distribution (s={d:.2})\n", .{ num_keys, s });
+    try std.io.getStdOut().writer().print("Generated {d} keys with Zipfian distribution (s={d:.2})\n", .{ keys.len, s });
     return keys;
 }
 
@@ -95,7 +95,7 @@ fn saveKeys(keys: []const utils.Sample) !void {
     try gzip_stream.writer().writeAll(std.mem.sliceAsBytes(keys));
     try gzip_stream.finish();
 
-    std.debug.print("Generated keys have been saved to file {s}\n", .{keys_file});
+    try std.io.getStdOut().writer().print("Generated keys have been saved to file {s}\n", .{keys_file});
 }
 
 pub fn runDefault(allocator: Allocator, keys: []utils.Sample) !void {
@@ -117,10 +117,13 @@ pub fn runDefault(allocator: Allocator, keys: []utils.Sample) !void {
         };
     }
 
-    const execution_mode = comptime if (getExecutionMode() == .multi) "multi" else "single";
+    const execution_mode = comptime if (getExecutionMode()) "multi" else "single";
     try utils.generateCSVs(execution_mode, &results);
 
-    std.debug.print("\rBenchmark results have been written to CSV files{s}\n", .{" " ** 30});
+    // Clear the line and create some space
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("\r{s}\r", .{" " ** 150});
+    try stdout.print("\rBenchmark results have been written to CSV files\n", .{});
 }
 
 pub fn runCustom(allocator: Allocator, keys: []utils.Sample) !void {
@@ -129,9 +132,7 @@ pub fn runCustom(allocator: Allocator, keys: []utils.Sample) !void {
     defer allocator.free(benchmark);
 
     const stdout = std.io.getStdOut().writer();
-    try stdout.writeAll("\r");
-    try stdout.writeByteNTimes(' ', 120);
-    try stdout.writeAll("\r");
+    try stdout.print("\r{s}\r", .{" " ** 150});
 
     try utils.printResults(allocator, benchmark);
 }
@@ -175,9 +176,7 @@ fn printBenchmarkHeader(comptime config: utils.Config, num_keys: usize) !void {
     const stdout = std.io.getStdOut().writer();
 
     // Clear the line and create some space
-    try stdout.writeAll("\r");
-    try stdout.writeByteNTimes(' ', 150);
-    try stdout.writeAll("\r");
+    try stdout.print("\r{s}\r", .{" " ** 150});
 
     // Print common configuration
     try stdout.print("{s}: ", .{config.execution_mode.format()});
@@ -186,11 +185,11 @@ fn printBenchmarkHeader(comptime config: utils.Config, num_keys: usize) !void {
         .operations => |ops| try stdout.print("operations={d} ", .{ops}),
     }
 
-    try stdout.print("keys={d} cache-size={d} pool-size={d} zipf={d:.2}", .{
+    try stdout.print("zipf={d:.2} keys={d} cache-size={d} pool-size={d}", .{
+        opts.zipf orelse default_zipf,
         num_keys,
         config.cache_size,
         config.pool_size orelse config.cache_size,
-        opts.zipf orelse default_zipf,
     });
 
     // Print multi-threaded specific configuration
@@ -211,15 +210,17 @@ fn getConfig(cache_size: u32) utils.Config {
         .cache_size = cache_size,
         .pool_size = opts.pool_size,
         .shard_count = opts.shard_count orelse default_shard_count,
-        .num_threads = if (mode == .multi) opts.num_threads orelse default_num_threads else 1,
+        .num_threads = opts.num_threads orelse default_num_threads,
         .zipf = opts.zipf orelse default_zipf,
     };
 }
 
-/// Determine the benchmark execution mode based on the configuration
+/// Determine the execution mode based on the configuration
 fn getExecutionMode() utils.ExecutionMode {
-    const mode = opts.mode orelse return .single;
-    return if (std.mem.eql(u8, mode, "multi")) .multi else .single;
+    return if (opts.num_threads orelse default_num_threads > 1)
+        .multi
+    else
+        .single;
 }
 
 /// Determine the stop condition based on the configuration

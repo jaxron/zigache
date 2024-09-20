@@ -52,12 +52,40 @@ pub const BenchmarkResult = struct {
             self.total_ops,
             self.ns_per_op,
             self.ops_per_second,
-            self.hit_rate * 100, // Convert to percentage
+            self.hit_rate,
             self.hits,
             self.misses,
             self.memory_mb,
         });
     }
+};
+
+pub const IntermediateResults = struct {
+    pub const empty = .{
+        .total_ops = 0,
+        .total_get_time = 0,
+        .total_set_time = 0,
+        .total_hits = 0,
+        .total_misses = 0,
+        .hit_rate = 0,
+        .ops_per_second = 0,
+        .ns_per_op = 0,
+        .avg_get_time = 0,
+        .avg_set_time = 0,
+        .progress = 0,
+    };
+
+    total_ops: u64,
+    total_get_time: u64,
+    total_set_time: u64,
+    total_hits: u64,
+    total_misses: u64,
+    hit_rate: f64,
+    ops_per_second: f64,
+    ns_per_op: f64,
+    avg_get_time: f64,
+    avg_set_time: f64,
+    progress: f64,
 };
 
 pub const ReplayBenchmarkResult = struct {
@@ -111,7 +139,7 @@ pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []con
         inline for (.{ "fifo", "lru", "tinylfu", "sieve", "s3fifo" }) |policy| {
             const value = switch (metric) {
                 .ns_per_op => @field(result, policy).ns_per_op,
-                .hit_rate => @field(result, policy).hit_rate * 100,
+                .hit_rate => @field(result, policy).hit_rate,
                 .ops_per_second => @field(result, policy).ops_per_second,
             };
             try writer.print(",{d:.2}", .{value});
@@ -120,20 +148,15 @@ pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []con
     }
 }
 
-pub fn parseResults(policy: PolicyConfig, run_time: u64, bytes: usize, hits: u64, misses: u64) BenchmarkResult {
-    const total_ops = hits + misses;
-    const hit_rate = @as(f64, @floatFromInt(hits)) / @as(f64, @floatFromInt(total_ops));
-    const ns_per_op = @as(f64, @floatFromInt(run_time)) / @as(f64, @floatFromInt(total_ops));
-    const ops_per_second = @as(f64, @floatFromInt(total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(run_time));
-
+pub fn parseResults(policy: PolicyConfig, results: IntermediateResults, bytes: usize) BenchmarkResult {
     return .{
         .policy = policy,
-        .total_ops = total_ops,
-        .ns_per_op = ns_per_op,
-        .ops_per_second = ops_per_second,
-        .hit_rate = hit_rate,
-        .hits = hits,
-        .misses = misses,
+        .total_ops = results.total_ops,
+        .ns_per_op = results.ns_per_op,
+        .ops_per_second = results.ops_per_second,
+        .hit_rate = results.hit_rate,
+        .hits = results.total_hits,
+        .misses = results.total_misses,
         .memory_mb = @as(f64, @floatFromInt(bytes)) / @as(f64, @floatFromInt(1024 * 1024)),
     };
 }
