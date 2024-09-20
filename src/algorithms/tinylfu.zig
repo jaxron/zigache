@@ -110,7 +110,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime comptime_opts: Compt
             defer if (thread_safety) self.mutex.unlock();
 
             const gop = try self.map.getOrPut(key, hash_code);
-            const node = gop.value_ptr.*;
+            const node = gop.node;
             node.update(key, value, ttl, .{
                 // New items always start in the window region
                 .region = if (gop.found_existing) node.data.region else .Window,

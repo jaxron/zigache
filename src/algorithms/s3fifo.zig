@@ -112,7 +112,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime comptime_opts: Compti
             }
 
             const gop = try self.map.getOrPut(key, hash_code);
-            const node = gop.value_ptr.*;
+            const node = gop.node;
             node.update(key, value, ttl, .{
                 .queue = if (gop.found_existing) node.data.queue else .Small,
                 .freq = if (gop.found_existing) node.data.freq else 0,

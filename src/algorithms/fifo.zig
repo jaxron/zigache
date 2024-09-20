@@ -67,7 +67,7 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime comptime_opts: Comptime
             defer if (thread_safety) self.mutex.unlock();
 
             const gop = try self.map.getOrPut(key, hash_code);
-            const node = gop.value_ptr.*;
+            const node = gop.node;
             node.update(key, value, ttl, {});
 
             if (!gop.found_existing) {

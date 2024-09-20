@@ -43,6 +43,12 @@ pub fn Map(
         };
         const Pool = zigache.Pool(Node);
 
+        /// A struct that represents the result of a `getOrPut` operation.
+        pub const GetOrPutResult = struct {
+            node: *Node,
+            found_existing: bool,
+        };
+
         /// Uses StringHashMap for string keys and AutoHashMap for other types.
         ///
         /// `HashMap` is chosen over `ArrayHashMap` for its overall better performance,
@@ -142,7 +148,7 @@ pub fn Map(
 
         /// If an entry for the key does not exist in the map, a new node is created and inserted.
         /// Returns a `GetOrPutResult` struct containing the node and whether it existed before.
-        pub fn getOrPut(self: *Self, key: K, hash_code: u64) !HashMapType.GetOrPutResult {
+        pub fn getOrPut(self: *Self, key: K, hash_code: u64) !GetOrPutResult {
             self.checkAndRehash();
 
             // We only use a single `getOrPutAdapted` call here for a performance improvement
@@ -163,7 +169,10 @@ pub fn Map(
                 gop.value_ptr.* = node;
             }
 
-            return gop;
+            return .{
+                .node = gop.value_ptr.*,
+                .found_existing = gop.found_existing,
+            };
         }
 
         /// Removes a key-value pair from the map if it exists.
@@ -245,7 +254,7 @@ test "Map - put and get" {
     // Insert a new entry
     {
         const gop = try map.getOrPut(key, hash_code);
-        const node = gop.value_ptr.*;
+        const node = gop.node;
 
         try testing.expect(!gop.found_existing);
         node.key = key;
@@ -307,7 +316,7 @@ test "Map - checkTTL" {
     const hash_code = hash([]const u8, key);
 
     const gop = try map.getOrPut(key, hash_code);
-    const node = gop.value_ptr.*;
+    const node = gop.node;
     node.* = .{
         .key = key,
         .value = 1,
@@ -332,7 +341,7 @@ test "Map - update existing entry" {
     // First insertion
     {
         const gop = try map.getOrPut(key, hash_code);
-        const node = gop.value_ptr.*;
+        const node = gop.node;
         try testing.expect(!gop.found_existing);
         node.value = 1;
     }
@@ -340,7 +349,7 @@ test "Map - update existing entry" {
     // Update existing entry
     {
         const gop = try map.getOrPut(key, hash_code);
-        const node = gop.value_ptr.*;
+        const node = gop.node;
         try testing.expect(gop.found_existing);
         node.value = 10;
     }

@@ -80,7 +80,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime comptime_opts: Comptim
             defer if (thread_safety) self.mutex.unlock();
 
             const gop = try self.map.getOrPut(key, hash_code);
-            const node = gop.value_ptr.*;
+            const node = gop.node;
             node.update(key, value, ttl, .{ .visited = false });
 
             if (!gop.found_existing) {
