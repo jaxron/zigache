@@ -40,6 +40,7 @@ pub fn main() !void {
 }
 
 fn loadOrGenerateKeys(allocator: Allocator) ![]utils.Sample {
+    const num_keys = opts.num_keys orelse default_num_keys;
     const file = std.fs.cwd().openFile(keys_file, .{}) catch {
         return generateKeys(allocator);
     };
@@ -54,7 +55,12 @@ fn loadOrGenerateKeys(allocator: Allocator) ![]utils.Sample {
     };
     defer allocator.free(file_content);
 
-    const num_keys = @divExact(file_content.len, @sizeOf(utils.Sample));
+    const keys_in_file = @divExact(file_content.len, @sizeOf(utils.Sample));
+    if (keys_in_file != num_keys) {
+        try std.io.getStdOut().writer().print("Number of keys in file ({d}) differs from requested number of keys ({d}). Generating new keys.\n", .{ keys_in_file, num_keys });
+        return generateKeys(allocator);
+    }
+
     const keys = try allocator.alloc(utils.Sample, num_keys);
     errdefer allocator.free(keys);
 
