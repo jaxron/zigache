@@ -54,7 +54,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime comptime_opts: Compt
             const protected_size = @max(1, main_size * 8 / 10); // 80% of main cache
             const probationary_size = main_size - protected_size; // 20% of main cache
 
-            const reset_threshold = cache_size * 10;
+            const reset_threshold = @as(u32, @intFromFloat(@as(f32, @floatFromInt(cache_size)) * opts.TinyLFU.reset_threshold_multiplier));
             return .{
                 .map = try .init(allocator, cache_size, pool_size),
                 .sketch = try .init(allocator, cache_size, opts.TinyLFU.cms_depth, reset_threshold),

@@ -119,10 +119,21 @@ pub const RuntimeConfig = struct {
             /// Depth of the Count-Min Sketch used for frequency counting.
             /// A higher value increases accuracy but uses more memory.
             cms_depth: u32 = 3,
+
             /// Size of the admission window as a percentage of the main cache.
             /// Affects the balance between admitting new items and retaining
             /// valuable ones.
             window_size_percent: u8 = 1,
+
+            /// The threshold at which the Count-Min Sketch is reset.
+            ///
+            /// The sketch is reset after processing W items, allowing it to adapt to
+            /// changing access patterns while maintaining relevant frequency information.
+            ///
+            /// Default is 1.0, meaning it will reset after processing a number of items
+            /// equal to the cache size. Users can adjust this value, but it's recommended
+            /// to keep it close to 1.0 for optimal performance as described in the paper.
+            reset_threshold_multiplier: f32 = 1.0,
         },
         SIEVE: struct {},
         S3FIFO: struct {
