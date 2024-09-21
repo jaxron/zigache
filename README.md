@@ -49,10 +49,11 @@ Zigache offers a rich set of features to designed to meet various caching needs:
   - FIFO | First-In-First-Out
 - **Extensive Configuration Options:**
   - Configurable cache size with pre-allocation for performance tuning
-  - Ability to fine-tune the eviction policy (e.g., TinyLFU, S3FIFO)
+  - Ability to fine-tune cache policies (e.g., TinyLFU, S3FIFO)
   - Time-To-Live (TTL) support to expire cache entries
   - Thread safety and sharding settings for concurrent environments
-- **Heavy Testing and Benchmarking** for stability and performance
+  - Adjustable max load factor for the cache
+- **Heavy Testing and Benchmarking** for [stability and performance](#-benchmarks) under various workloads
 
 # ⚡️ Quickstart
 
@@ -138,13 +139,14 @@ Zigache offers flexible configuration options to adjust the cache to your needs:
 
 ```zig
 var cache: Cache([]const u8, []const u8, .{
-    .thread_safety = true, // Enable thread safety for multi-threaded environments
-    .ttl_enabled = true,  // Enable Time-To-Live (TTL) functionality
+    .thread_safety = true,     // Enable thread safety for multi-threaded environments
+    .ttl_enabled = true,       // Enable Time-To-Live (TTL) functionality
+    .max_load_percentage = 60, // Set maximum load factor for the cache (60% occupancy)
 }) = try .init(allocator, .{
-    .cache_size = 10000,   // Maximum number of items the cache can store
-    .pool_size = 1000,     // Pre-allocated nodes to optimize performance
-    .shard_count = 16,     // Number of shards for concurrent access handling
-    .policy = .SIEVE,      // Eviction policy in use
+    .cache_size = 10000,       // Maximum number of items the cache can store
+    .pool_size = 1000,         // Pre-allocated nodes to optimize performance
+    .shard_count = 16,         // Number of shards for concurrent access handling
+    .policy = .SIEVE,          // Eviction policy in use
 });
 ```
 
@@ -152,13 +154,13 @@ var cache: Cache([]const u8, []const u8, .{
 
 # 📊 Benchmarks
 
-This benchmark uses a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law) with a parameter of 1.0, run on an Intel® Core™ i7-8700 CPU, using commit `41e78a2` of this library.
+This benchmark uses a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%27s_law), run on an Intel® Core™ i7-8700 CPU, using commit `7a12b1f` of this library.
 
 > [!NOTE]
-> Keep in mind that these results are not conclusive. Performance varies with workload and environment and some eviction policies may perform better for specific use cases. There are many flags to customize the benchmark so it's best to experiment with different parameters. For more details on the available flags, run `zig build -h`.
+> These results are not conclusive, as performance depends on workload and environment. These benchmarks are comparing eviction policies within this library, and not comparisons with other languages or libraries. You can customize the benchmarks using various flags. For details, run `zig build -h`.
 
 <details>
-<summary>Single Threaded</summary>
+<summary>Single Threaded (zipf 0.9, 10m keys)</summary>
 
 ## Benchmark Parameters
 
@@ -166,24 +168,67 @@ This benchmark uses a [Zipfian distribution](https://en.wikipedia.org/wiki/Zipf%
 zig build bench -Doptimize=ReleaseFast
 ```
 
+or
+
+```sh
+zig build bench -Doptimize=ReleaseFast -Dreplay=true -Dshards=1 -Dthreads=1 -Dauto='20:50000' -Dzipf='0.9' -Dkeys=10000000 -Dduration=10000
+```
+
 ## Results
 
 ### Hit Rate (%)
 
 <picture>
-  <img alt="Zigache" src="./assets/images/benchmarks/hit_rate.png">
+  <img alt="Zigache" src="./assets/images/benchmarks/1/hit_rate.png">
 </picture>
 
 ### Average Operation Time (ns/op)
 
 <picture>
-  <img alt="Zigache" src="./assets/images/benchmarks/ns_per_op.png">
+  <img alt="Zigache" src="./assets/images/benchmarks/1/ns_op.png">
 </picture>
 
 ### Operations per Second (ops/s)
 
 <picture>
-  <img alt="Zigache" src="./assets/images/benchmarks/ops_per_sec.png">
+  <img alt="Zigache" src="./assets/images/benchmarks/1/ops_s.png">
+</picture>
+
+</details>
+
+<details>
+<summary>Single Threaded (zipf 0.7, 10m keys)</summary>
+
+## Benchmark Parameters
+
+```sh
+zig build bench -Doptimize=ReleaseFast -Dzipf='0.7'
+```
+
+or
+
+```sh
+zig build bench -Doptimize=ReleaseFast -Dreplay=true -Dshards=1 -Dthreads=1 -Dauto='20:50000' -Dzipf='0.7' -Dkeys=10000000 -Dduration=10000
+```
+
+## Results
+
+### Hit Rate (%)
+
+<picture>
+  <img alt="Zigache" src="./assets/images/benchmarks/2/hit_rate.png">
+</picture>
+
+### Average Operation Time (ns/op)
+
+<picture>
+  <img alt="Zigache" src="./assets/images/benchmarks/2/ns_op.png">
+</picture>
+
+### Operations per Second (ops/s)
+
+<picture>
+  <img alt="Zigache" src="./assets/images/benchmarks/2/ops_s.png">
 </picture>
 
 </details>
@@ -196,7 +241,7 @@ Zigache is in its early stages. Our main priority is on implementing features, w
 - [ ] ⚙️ Runtime-configurable API
 - [ ] 📦 Batch operations support
 - [ ] 📊 Metrics and monitoring
-- [ ] 🔄 Adaptive system to adjust eviction policies
+- [X] 🔄 Configuration to adjust eviction policies
 - [ ] 🔓 Lock-free data structures
 - [ ] 📚 More extensive examples
 - [ ] ⚡️ Async (non-blocking) I/O operations
@@ -211,17 +256,17 @@ This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md)
 
 <details>
   <summary><b>Is Zigache production-ready?</b></summary>
-  <p>Zigache is currently in early development. Although it has been tested and benchmarked, it may not yet be suitable for all production environments. If you decide to use it in a production setting, please report any problems you find.</p>
+  <p>Zigache is currently in early development. Although it has been tested and benchmarked, it may not yet be suitable for all production environments. If you decide to use it in a production setting, please report any problems you encounter.</p>
 </details>
 
 <details>
   <summary><b>Which eviction policy should I choose?</b></summary>
   <p>It depends on your use case:
     <ul>
-      <li><b>TinyLFU</b>: Best for workloads that prioritize hit rates.</li>
-      <li><b>SIEVE</b>: Good balance between throughput and hit rate.</li>
-      <li><b>S3FIFO</b>: Provides decent throughput with a decent hit rate.</li>
-      <li><b>LRU</b>: Reliable for standard caching needs but falls behind compared to other options.</li>
+      <li><b>SIEVE</b>: Best for high throughput and high hit rate. (recommended)</li>
+      <li><b>TinyLFU</b>: Best for customizability and high hit rate.</li>
+      <li><b>S3FIFO</b>: Decent throughput with a decent hit rate.</li>
+      <li><b>LRU</b>: Reliable for standard needs but falls behind compared to other options.</li>
       <li><b>FIFO</b>: High throughput, but lowest hit rates.</li>
     </ul>
   </p>
@@ -229,7 +274,7 @@ This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md)
 
 <details>
   <summary><b>Can I use Zigache in a multi-threaded environment?</b></summary>
-  <p>Yes, Zigache supports thread-safe operations and sharding. The performance is not the greatest but there are plans to improve it.</p>
+  <p>Yes, Zigache supports thread-safe operations and sharding. Sharding reduces contention and there are plans to improve performance further in the future.</p>
 </details>
 
 <details>
