@@ -15,7 +15,7 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime comptime_opts: Comptime
     const max_load_percentage = comptime_opts.max_load_percentage;
     return struct {
         const Map = zigache.Map(K, V, void, ttl_enabled, max_load_percentage);
-        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled, max_load_percentage);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
 
         map: Map,

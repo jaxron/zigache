@@ -9,8 +9,35 @@ const Allocator = std.mem.Allocator;
 /// This minimizes allocations and deallocations by reusing memory,
 /// which can significantly improve performance in high-churn scenarios
 /// by reducing pressure on the allocator and avoiding fragmentation.
-pub fn Pool(comptime Node: type) type {
+pub fn Pool(
+    comptime K: type,
+    comptime V: type,
+    comptime Data: type,
+    comptime ttl_enabled: bool,
+) type {
     return struct {
+        pub const Node = struct {
+            prev: ?*Node,
+            next: ?*Node,
+            key: K,
+            value: V,
+            expiry: if (ttl_enabled) ?i64 else void,
+            data: Data,
+
+            pub inline fn update(self: *Node, key: K, value: V, ttl: ?u64, data: Data) void {
+                self.* = .{
+                    .prev = self.prev,
+                    .next = self.next,
+                    .key = key,
+                    .value = value,
+                    .expiry = if (ttl_enabled)
+                        if (ttl) |t| std.time.milliTimestamp() + @as(i64, @intCast(t)) else null
+                    else {},
+                    .data = data,
+                };
+            }
+        };
+
         allocator: Allocator,
         nodes: []*Node,
         available: usize,
@@ -31,7 +58,8 @@ pub fn Pool(comptime Node: type) type {
 
             for (0..initial_size) |i| {
                 const node = try allocator.create(Node);
-                node.* = .empty;
+                node.prev = null;
+                node.next = null;
                 nodes[i] = node;
                 available += 1;
             }
@@ -59,7 +87,8 @@ pub fn Pool(comptime Node: type) type {
             if (available == 0) {
                 // Pool is empty, create a new node
                 const node = try self.allocator.create(Node);
-                node.* = .empty;
+                node.prev = null;
+                node.next = null;
                 return node;
             }
 
@@ -88,10 +117,10 @@ pub fn Pool(comptime Node: type) type {
 
 const testing = std.testing;
 
-const TestNode = zigache.Map(u32, u32, void, false, 60).Node;
+const TestPool = zigache.Pool(u32, u32, void, false);
 
 test "Pool - init and deinit" {
-    var pool: Pool(TestNode) = try .init(testing.allocator, 10);
+    var pool: TestPool = try .init(testing.allocator, 10);
     defer pool.deinit();
 
     try testing.expectEqual(10, pool.available);
@@ -99,7 +128,7 @@ test "Pool - init and deinit" {
 }
 
 test "Pool - acquire and release" {
-    var pool: Pool(TestNode) = try .init(testing.allocator, 2);
+    var pool: TestPool = try .init(testing.allocator, 2);
     defer pool.deinit();
 
     // Acquire nodes until the pool is empty

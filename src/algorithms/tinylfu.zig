@@ -30,7 +30,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime comptime_opts: Compt
         };
 
         const Map = zigache.Map(K, V, Data, ttl_enabled, max_load_percentage);
-        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled, max_load_percentage);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
         const Node = Map.Node;
 

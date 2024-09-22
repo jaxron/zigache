@@ -23,7 +23,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime comptime_opts: Comptim
         };
 
         const Map = zigache.Map(K, V, Data, ttl_enabled, max_load_percentage);
-        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled, max_load_percentage);
+        const DoublyLinkedList = zigache.DoublyLinkedList(K, V, Data, ttl_enabled);
         const Mutex = if (thread_safety) std.Thread.RwLock else void;
         const Node = Map.Node;
 

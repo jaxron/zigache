@@ -11,10 +11,9 @@ pub fn DoublyLinkedList(
     comptime V: type,
     comptime Data: type,
     comptime ttl_enabled: bool,
-    comptime max_load_percentage: u64,
 ) type {
     return struct {
-        pub const Node = zigache.Map(K, V, Data, ttl_enabled, max_load_percentage).Node;
+        pub const Node = zigache.Pool(K, V, Data, ttl_enabled).Node;
 
         pub const empty: Self = .{
             .first = null,
@@ -170,8 +169,8 @@ pub fn DoublyLinkedList(
 
 const testing = std.testing;
 
-const TestList = DoublyLinkedList(u32, u32, void, false, 60);
-const TestNode = zigache.Map(u32, u32, void, false, 60).Node;
+const TestList = DoublyLinkedList(u32, u32, void, false);
+const TestNode = zigache.Pool(u32, u32, void, false).Node;
 
 fn initTestNode(value: u32) TestNode {
     return .{
