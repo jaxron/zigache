@@ -9,13 +9,11 @@ const Allocator = std.mem.Allocator;
 /// This minimizes allocations and deallocations by reusing memory,
 /// which can significantly improve performance in high-churn scenarios
 /// by reducing pressure on the allocator and avoiding fragmentation.
-pub fn Pool(
-    comptime K: type,
-    comptime V: type,
-    comptime Data: type,
-    comptime ttl_enabled: bool,
-) type {
+pub fn Pool(comptime K: type, comptime V: type, comptime Data: type, comptime ttl_enabled: bool) type {
     return struct {
+        /// Node represents an item in the cache.
+        /// It contains the key-value pair, expiry information (if TTL is enabled),
+        /// custom data, and pointers for the doubly-linked list structure.
         pub const Node = struct {
             prev: ?*Node,
             next: ?*Node,

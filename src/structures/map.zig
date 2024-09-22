@@ -105,17 +105,17 @@ pub fn Map(
             self.map.deinit(self.allocator);
         }
 
-        /// Returns true if a key exists in the map.
+        /// Returns true if a key exists in the map, false otherwise.
         pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             return self.map.containsAdapted(key, HashContext.init(hash_code));
         }
 
-        /// Returns the number of items in this map.
+        /// Returns the total number of items in the map.
         pub inline fn count(self: *Self) usize {
             return self.map.count();
         }
 
-        /// Gets a node based on the given key.
+        /// Retrieve a node from the map given its key.
         /// Returns a pointer to the Node if found, or null if not found.
         pub inline fn get(self: *Self, key: K, hash_code: u64) ?*Node {
             return self.map.getAdapted(key, HashContext.init(hash_code));

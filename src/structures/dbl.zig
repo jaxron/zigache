@@ -6,12 +6,7 @@ const assert = std.debug.assert;
 /// The implementation uses asserts to check for impossible cases, which
 /// helps catch bugs and invalid states during development and testing.
 /// All operations have O(1) time complexity, except for `clear()` which is O(n).
-pub fn DoublyLinkedList(
-    comptime K: type,
-    comptime V: type,
-    comptime Data: type,
-    comptime ttl_enabled: bool,
-) type {
+pub fn DoublyLinkedList(comptime K: type, comptime V: type, comptime Data: type, comptime ttl_enabled: bool) type {
     return struct {
         pub const Node = zigache.Pool(K, V, Data, ttl_enabled).Node;
 

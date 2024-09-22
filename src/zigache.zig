@@ -15,6 +15,8 @@ pub const Pool = @import("structures/pool.zig").Pool;
 
 pub fn main() !void {}
 
+/// This config affect the behavior and capabilities of the cache
+/// and cannot be changed after compilation.
 pub const CacheTypeOptions = struct {
     /// Determines whether the Time-To-Live (TTL) functionality is enabled.
     ///
@@ -65,6 +67,8 @@ pub const CacheTypeOptions = struct {
     max_load_percentage: u8 = 60,
 };
 
+// These options are used when initializing the cache and allow
+// for flexible cache behavior tuning without recompilation.
 pub const CacheInitOptions = struct {
     // The maximum number of items the cache can hold before it starts evicting.
     cache_size: u32,
@@ -275,18 +279,18 @@ pub fn Cache(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeO
             return shard.get(key, hash_code);
         }
 
-        /// Set a key-value pair in the cache, evicting an item if necessary.
+        /// Inserts or updates a key-value pair in the cache, evicting an item if necessary.
         /// Both the key and value must remain valid for as long as they're in the cache.
         pub fn put(self: *Self, key: K, value: V) !void {
             const hash_code, const shard = self.getShard(key);
             try shard.put(key, value, null, hash_code);
         }
 
-        /// Sets a key-value pair in the cache with a specified Time-To-Live (TTL),
-        /// evicting an item if necessary. The TTL determines how long the item
-        /// should be considered valid in the cache before future `get()` calls
-        /// for this entry returns a null result and is removed from the cache.
-        /// Time is measured in milliseconds.
+        /// Inserts or updates a key-value pair in the cache with a specified
+        /// Time-To-Live (TTL), evicting an item if necessary. The TTL determines
+        /// how long the item should be considered valid in the cache before
+        /// future `get()` calls for this entry returns a null result and is
+        /// removed from the cache. Time is measured in milliseconds.
         pub fn putWithTTL(self: *Self, key: K, value: V, ttl: u64) !void {
             comptime if (!cache_opts.ttl_enabled) @compileError("TTL is not enabled for this cache configuration");
 

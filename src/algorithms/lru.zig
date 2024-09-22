@@ -14,6 +14,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOpt
     const thread_safety = cache_opts.thread_safety;
     const ttl_enabled = cache_opts.ttl_enabled;
     const max_load_percentage = cache_opts.max_load_percentage;
+
     return struct {
         const Map = zigache.Map(K, V, void, ttl_enabled, max_load_percentage);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);
@@ -25,15 +26,19 @@ pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOpt
 
         const Self = @This();
 
+        /// Initialize a new LRU cache with the given configuration.
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyOptions) !Self {
             return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
+        /// Cleans up all resources used by the cache.
         pub fn deinit(self: *Self) void {
             self.list.clear();
             self.map.deinit();
         }
 
+        /// Returns true if a key exists in the cache, false otherwise.
+        /// This method does not update the cache state or affect eviction order.
         pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
@@ -41,6 +46,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOpt
             return self.map.contains(key, hash_code);
         }
 
+        /// Returns the total number of items currently stored in the cache.
         pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
@@ -48,6 +54,9 @@ pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOpt
             return self.map.count();
         }
 
+        /// Retrieves a value from the cache given its key.
+        /// If the key exists and is not expired, it returns the associated value and moves the entry to the back.
+        /// If the key doesn't exist or has expired, it returns null.
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -66,6 +75,10 @@ pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOpt
             return null;
         }
 
+        /// Inserts or updates a key-value pair in the cache with an optional Time-To-Live (TTL).
+        /// If the key already exists, its value and TTL are updated. If the cache is full, it
+        /// will trigger an eviction. Both the key and value must remain valid for as long as
+        /// they're in the cache.
         pub fn put(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -84,6 +97,8 @@ pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOpt
             }
         }
 
+        /// Removes a key-value pair from the cache if it exists.
+        /// Returns true if it was successfully removed, false otherwise.
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -95,6 +110,8 @@ pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOpt
             } else false;
         }
 
+        /// Internal method to handle cache eviction in LRU.
+        /// Removes the least recently used item (at the front of the list) when the cache is full.
         fn evict(self: *Self) void {
             if (self.list.first) |head| {
                 // Remove the least recently used item (at the front of the list)

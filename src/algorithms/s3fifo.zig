@@ -18,6 +18,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
     const thread_safety = cache_opts.thread_safety;
     const ttl_enabled = cache_opts.ttl_enabled;
     const max_load_percentage = cache_opts.max_load_percentage;
+
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
@@ -47,6 +48,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
 
         const Self = @This();
 
+        /// Initialize a new S3FIFO cache with the given configuration.
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, opts: PolicyOptions) !Self {
             // Allocate 10% of total size to small queue, and split the rest between main and ghost
             const small_size = @max(1, cache_size * opts.S3FIFO.small_size_percent / 100);
@@ -61,6 +63,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             };
         }
 
+        /// Cleans up all resources used by the cache.
         pub fn deinit(self: *Self) void {
             self.small.clear();
             self.main.clear();
@@ -68,6 +71,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             self.map.deinit();
         }
 
+        /// Returns true if a key exists in the cache, false otherwise.
+        /// This method does not update the cache state or affect eviction order.
         pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
@@ -75,6 +80,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             return self.map.contains(key, hash_code);
         }
 
+        /// Returns the total number of items currently stored in the cache.
+        /// This count includes items in all regions of the cache.
         pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
@@ -82,6 +89,9 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             return self.map.count();
         }
 
+        /// Retrieves a value from the cache given its key.
+        /// If the key exists and is not expired, it returns the associated value and increments the entry's frequency.
+        /// If the key doesn't exist or has expired, it returns null.
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -102,6 +112,10 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             return null;
         }
 
+        /// Inserts or updates a key-value pair in the cache with an optional Time-To-Live (TTL).
+        /// If the key already exists, its value and TTL are updated. If the cache is full, it
+        /// will trigger an eviction. Both the key and value must remain valid for as long as
+        /// they're in the cache.
         pub fn put(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -131,6 +145,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             }
         }
 
+        /// Removes a key-value pair from the cache if it exists.
+        /// Returns true if it was successfully removed, false otherwise.
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -143,6 +159,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             } else false;
         }
 
+        /// Internal method to handle cache eviction in S3FIFO.
+        /// Evicts items based on their location in the three segments and their access frequency.
         fn evict(self: *Self) void {
             // Prioritize evicting from Small queue if it's full
             if (self.small.len >= self.small_size) {
@@ -152,11 +170,10 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             }
         }
 
+        /// Handles the eviction process for the main cache segment.
+        /// It removes items with zero frequency and decrements the frequency of others.
         fn evictMain(self: *Self) void {
             while (self.main.popFirst()) |node| {
-                // We want to evict an item with a frequency of 0
-                // If the item has a positive frequency, decrement it
-                // and move to the end of Main queue
                 if (node.data.freq > 0) {
                     node.data.freq -= 1;
                     self.main.append(node);
@@ -168,11 +185,10 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             }
         }
 
+        /// Handles the eviction process for the small cache segment.
+        /// It promotes frequently accessed items to the main segment and moves others to the ghost segment.
         fn evictSmall(self: *Self) void {
             while (self.small.popFirst()) |node| {
-                // If the item has been accessed more than once, move to Main queue.
-                // Otherwise, move to Ghost queue.
-                //
                 // The S3FIFO paper suggests checking if freq > 1, but due to bad hitrate
                 // in short to medium term tests, we're using freq > 0 instead.
                 if (node.data.freq > 0) {
@@ -190,6 +206,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             }
         }
 
+        /// Handles the eviction process for the ghost cache segment.
+        /// It removes the oldest item when it reaches capacity.
         fn evictGhost(self: *Self) void {
             if (self.ghost.popFirst()) |node| {
                 // Remove oldest ghost entry when ghost queue is full
@@ -198,6 +216,8 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheType
             }
         }
 
+        /// Removes the node from its current list (Small, Main, or Ghost) based on its queue type.
+        /// This is an internal helper method used during eviction and removal operations.
         fn removeFromList(self: *Self, node: *Node) void {
             switch (node.data.queue) {
                 .Small => self.small.remove(node),

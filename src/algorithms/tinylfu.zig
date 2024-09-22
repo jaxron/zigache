@@ -18,6 +18,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
     const thread_safety = cache_opts.thread_safety;
     const ttl_enabled = cache_opts.ttl_enabled;
     const max_load_percentage = cache_opts.max_load_percentage;
+
     return struct {
         const CacheRegion = enum { Window, Probationary, Protected };
 
@@ -48,6 +49,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
 
         const Self = @This();
 
+        /// Initialize a new TinyLFU cache with the given configuration.
         pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, opts: PolicyOptions) !Self {
             const window_size = @max(1, cache_size * opts.TinyLFU.window_size_percent / 100); // 1% window cache
             const main_size = @max(2, cache_size - window_size);
@@ -64,6 +66,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             };
         }
 
+        /// Cleans up all resources used by the cache.
         pub fn deinit(self: *Self) void {
             self.sketch.deinit();
             self.window.clear();
@@ -72,6 +75,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             self.map.deinit();
         }
 
+        /// Returns true if a key exists in the cache, false otherwise.
+        /// This method does not update the cache state or affect eviction order.
         pub inline fn contains(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
@@ -79,6 +84,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             return self.map.contains(key, hash_code);
         }
 
+        /// Returns the total number of items currently stored in the cache.
+        /// This count includes items in all regions of the cache.
         pub inline fn count(self: *Self) usize {
             if (thread_safety) self.mutex.lockShared();
             defer if (thread_safety) self.mutex.unlockShared();
@@ -86,6 +93,9 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             return self.map.count();
         }
 
+        /// Retrieves a value from the cache given its key.
+        /// If the key exists and is not expired, it returns the associated value and records the entry's access.
+        /// If the key doesn't exist or has expired, it returns null.
         pub fn get(self: *Self, key: K, hash_code: u64) ?V {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -105,6 +115,10 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             return null;
         }
 
+        /// Inserts or updates a key-value pair in the cache with an optional Time-To-Live (TTL).
+        /// If the key already exists, its value and TTL are updated. If the cache is full, it
+        /// will trigger an eviction. Both the key and value must remain valid for as long as
+        /// they're in the cache.
         pub fn put(self: *Self, key: K, value: V, ttl: ?u64, hash_code: u64) !void {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -124,6 +138,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             }
         }
 
+        /// Removes a key-value pair from the cache if it exists.
+        /// Returns true if it was successfully removed, false otherwise.
         pub fn remove(self: *Self, key: K, hash_code: u64) bool {
             if (thread_safety) self.mutex.lock();
             defer if (thread_safety) self.mutex.unlock();
@@ -137,6 +153,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             return false;
         }
 
+        /// Removes the node from its current list (Window, Probationary, or Protected) based on its region.
         fn removeFromList(self: *Self, node: *Node) void {
             switch (node.data.region) {
                 .Window => self.window.remove(node),
@@ -145,6 +162,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             }
         }
 
+        /// Updates the position of a node depending on the its current region.
         fn updateOnHit(self: *Self, node: *Node) void {
             switch (node.data.region) {
                 // In window cache, just move to back (most recently used)
@@ -166,8 +184,9 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             }
         }
 
+        /// Inserts a new node into the cache. If the window cache is full,
+        /// it triggers the admission process to the main cache.
         fn insertNew(self: *Self, node: *Node) void {
-            // If window is full, try to move the oldest window item to main cache
             if (self.window.len >= self.window_size) {
                 const victim = self.window.popFirst().?;
                 self.tryAdmitToMain(victim);
@@ -175,6 +194,8 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTyp
             self.window.append(node);
         }
 
+        /// Attempts to admit a candidate from the window cache to the main cache.
+        /// Uses the frequency sketch to decide whether to admit the candidate or evict it.
         fn tryAdmitToMain(self: *Self, candidate: *Node) void {
             if (self.probationary.len >= self.probationary_size) {
                 const victim = self.probationary.first.?;
