@@ -91,14 +91,16 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
 
                 // Perform cache operation
                 const data = ctx.keys[i % ctx.keys.len];
+                const key = data.key;
+                const value = data.value;
 
                 timer.reset();
-                if (ctx.cache.get(data.key)) |_| {
+                if (ctx.cache.get(key)) |_| {
                     ctx.get_time += timer.lap();
                     ctx.hits += 1;
                 } else {
                     ctx.get_time += timer.lap();
-                    ctx.cache.put(data.key, data.value) catch @panic("Failed to set key");
+                    ctx.cache.put(key, value) catch @panic("Failed to set key");
                     ctx.set_time += timer.lap();
                     ctx.misses += 1;
                 }
@@ -108,8 +110,6 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
         fn monitorProgress(stdout: std.fs.File.Writer, contexts: *[]ThreadContext) !void {
             while (true) {
                 const results = aggregateResults(contexts.*);
-
-                // Stop monitoring if the stop condition is met
                 if (results.progress >= 1.0) break;
 
                 try printProgress(stdout, results);
@@ -118,7 +118,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
         }
 
         fn aggregateResults(contexts: []ThreadContext) IntermediateResults {
-            var results: IntermediateResults = .empty;
+            var results = IntermediateResults{};
             for (contexts) |ctx| {
                 results.total_ops += ctx.hits + ctx.misses;
                 results.total_get_time += ctx.get_time;
@@ -132,7 +132,7 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
             results.ops_per_second = @as(f64, @floatFromInt(results.total_ops)) * std.time.ns_per_s / @as(f64, @floatFromInt(total_time));
             results.ns_per_op = @as(f64, @floatFromInt(total_time)) / @as(f64, @floatFromInt(results.total_ops));
             results.avg_get_time = @as(f64, @floatFromInt(results.total_get_time)) / @as(f64, @floatFromInt(results.total_ops));
-            results.avg_set_time = @as(f64, @floatFromInt(results.total_set_time)) / @as(f64, @floatFromInt(results.total_misses));
+            results.avg_put_time = @as(f64, @floatFromInt(results.total_set_time)) / @as(f64, @floatFromInt(results.total_misses));
             results.progress = switch (opts.stop_condition) {
                 .duration => |ms| @as(f64, @floatFromInt(total_time)) / @as(f64, @floatFromInt(ms * opts.num_threads * std.time.ns_per_ms)),
                 .operations => |max_ops| @as(f64, @floatFromInt(results.total_ops)) / @as(f64, @floatFromInt(max_ops)),
@@ -158,9 +158,9 @@ pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
                 results.ops_per_second,
                 results.ns_per_op,
             }); // Right-aligned with 2 decimal places
-            try stdout.print("Avg Get: {d:>7.2}ns | Avg Set: {d:>7.2}ns", .{
+            try stdout.print("Avg Get: {d:>7.2}ns | Avg Put: {d:>7.2}ns", .{
                 results.avg_get_time,
-                results.avg_set_time,
+                results.avg_put_time,
             }); // Added average get and set times
         }
     };

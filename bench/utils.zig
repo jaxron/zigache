@@ -38,54 +38,37 @@ pub const Sample = struct {
 
 pub const BenchmarkResult = struct {
     policy: PolicyConfig,
-    total_ops: u64,
-    ns_per_op: f64,
-    ops_per_second: f64,
-    hit_rate: f64,
-    hits: u64,
-    misses: u64,
+    results: IntermediateResults,
     memory_mb: f64,
 
     pub fn format(self: BenchmarkResult, allocator: std.mem.Allocator) ![]const u8 {
-        return std.fmt.allocPrint(allocator, "{s}|{d}|{d:.2}|{d:.2}|{d:.2}|{d}|{d}|{d:.2}", .{
+        return std.fmt.allocPrint(allocator, "{s}|{d}|{d:.2}|{d:.2}|{d:.2}|{d:.2}|{d:.2}|{d}|{d}|{d:.2}", .{
             @tagName(self.policy),
-            self.total_ops,
-            self.ns_per_op,
-            self.ops_per_second,
-            self.hit_rate,
-            self.hits,
-            self.misses,
+            self.results.total_ops,
+            self.results.ops_per_second,
+            self.results.ns_per_op,
+            self.results.avg_get_time,
+            self.results.avg_put_time,
+            self.results.hit_rate,
+            self.results.total_hits,
+            self.results.total_misses,
             self.memory_mb,
         });
     }
 };
 
 pub const IntermediateResults = struct {
-    pub const empty = .{
-        .total_ops = 0,
-        .total_get_time = 0,
-        .total_set_time = 0,
-        .total_hits = 0,
-        .total_misses = 0,
-        .hit_rate = 0,
-        .ops_per_second = 0,
-        .ns_per_op = 0,
-        .avg_get_time = 0,
-        .avg_set_time = 0,
-        .progress = 0,
-    };
-
-    total_ops: u64,
-    total_get_time: u64,
-    total_set_time: u64,
-    total_hits: u64,
-    total_misses: u64,
-    hit_rate: f64,
-    ops_per_second: f64,
-    ns_per_op: f64,
-    avg_get_time: f64,
-    avg_set_time: f64,
-    progress: f64,
+    total_ops: u64 = 0,
+    total_get_time: u64 = 0,
+    total_set_time: u64 = 0,
+    total_hits: u64 = 0,
+    total_misses: u64 = 0,
+    hit_rate: f64 = 0,
+    ops_per_second: f64 = 0,
+    ns_per_op: f64 = 0,
+    avg_get_time: f64 = 0,
+    avg_put_time: f64 = 0,
+    progress: f64 = 0,
 };
 
 pub const ReplayBenchmarkResult = struct {
@@ -134,13 +117,15 @@ pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []con
     });
 
     // Write results
+    const fields = std.meta.fields(ReplayBenchmarkResult);
     for (results) |result| {
         try writer.print("{}", .{result.cache_size});
-        inline for (.{ "fifo", "lru", "tinylfu", "sieve", "s3fifo" }) |policy| {
+        inline for (1..fields.len) |i| {
+            const bench_results = @field(result, fields[i].name).results;
             const value = switch (metric) {
-                .ns_per_op => @field(result, policy).ns_per_op,
-                .hit_rate => @field(result, policy).hit_rate,
-                .ops_per_second => @field(result, policy).ops_per_second,
+                .ns_per_op => bench_results.ns_per_op,
+                .hit_rate => bench_results.hit_rate,
+                .ops_per_second => bench_results.ops_per_second,
             };
             try writer.print(",{d:.2}", .{value});
         }
@@ -151,18 +136,13 @@ pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []con
 pub fn parseResults(policy: PolicyConfig, results: IntermediateResults, bytes: usize) BenchmarkResult {
     return .{
         .policy = policy,
-        .total_ops = results.total_ops,
-        .ns_per_op = results.ns_per_op,
-        .ops_per_second = results.ops_per_second,
-        .hit_rate = results.hit_rate,
-        .hits = results.total_hits,
-        .misses = results.total_misses,
+        .results = results,
         .memory_mb = @as(f64, @floatFromInt(bytes)) / @as(f64, @floatFromInt(1024 * 1024)),
     };
 }
 
 pub fn printResults(allocator: std.mem.Allocator, results: []const BenchmarkResult) !void {
-    const headers = [_][]const u8{ "Name", "Total Ops", "ns/op", "ops/s", "Hit Rate (%)", "Hits", "Misses", "Memory (MB)" };
+    const headers = [_][]const u8{ "Name", "Total Ops", "ops/s", "ns/op", "Avg Get (ns)", "Avg Set (ns)", "Hit Rate (%)", "Hits", "Misses", "Memory (MB)" };
 
     var col_widths = [_]usize{0} ** headers.len;
     for (headers, 0..) |header, i| {
