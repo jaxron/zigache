@@ -2,8 +2,8 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
-const ComptimeConfig = zigache.ComptimeConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
+const CacheTypeOptions = zigache.CacheTypeOptions;
 const Allocator = std.mem.Allocator;
 
 /// S3FIFO is an advanced FIFO-based caching policy that uses three segments:
@@ -14,10 +14,10 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://s3fifo.com/
-pub fn S3FIFO(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
-    const thread_safety = comptime_opts.thread_safety;
-    const ttl_enabled = comptime_opts.ttl_enabled;
-    const max_load_percentage = comptime_opts.max_load_percentage;
+pub fn S3FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOptions) type {
+    const thread_safety = cache_opts.thread_safety;
+    const ttl_enabled = cache_opts.ttl_enabled;
+    const max_load_percentage = cache_opts.max_load_percentage;
     return struct {
         const Promotion = enum { SmallToMain, SmallToGhost, GhostToMain };
         const QueueType = enum { Small, Main, Ghost };
@@ -47,7 +47,7 @@ pub fn S3FIFO(comptime K: type, comptime V: type, comptime comptime_opts: Compti
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, opts: PolicyConfig) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, opts: PolicyOptions) !Self {
             // Allocate 10% of total size to small queue, and split the rest between main and ghost
             const small_size = @max(1, cache_size * opts.S3FIFO.small_size_percent / 100);
             const other_size = @max(1, (cache_size - small_size) / 2);

@@ -1,7 +1,7 @@
 const std = @import("std");
 const zigache = @import("zigache");
 
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
 
 pub const ExecutionMode = enum {
     single,
@@ -37,7 +37,7 @@ pub const Sample = struct {
 };
 
 pub const BenchmarkResult = struct {
-    policy: PolicyConfig,
+    policy: PolicyOptions,
     results: IntermediateResults,
     memory_mb: f64,
 
@@ -133,7 +133,7 @@ pub fn generateCSV(filename: []const u8, metric: BenchmarkMetric, results: []con
     }
 }
 
-pub fn parseResults(policy: PolicyConfig, results: IntermediateResults, bytes: usize) BenchmarkResult {
+pub fn parseResults(policy: PolicyOptions, results: IntermediateResults, bytes: usize) BenchmarkResult {
     return .{
         .policy = policy,
         .results = results,

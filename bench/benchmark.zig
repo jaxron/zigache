@@ -2,12 +2,12 @@ const std = @import("std");
 const zigache = @import("zigache");
 const utils = @import("utils.zig");
 
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
 const BenchmarkResult = utils.BenchmarkResult;
 const IntermediateResults = utils.IntermediateResults;
 const Config = utils.Config;
 
-pub fn Benchmark(comptime opts: Config, comptime policy: PolicyConfig) type {
+pub fn Benchmark(comptime opts: Config, comptime policy: PolicyOptions) type {
     return struct {
         const Cache = zigache.Cache(u64, u64, .{
             .thread_safety = opts.execution_mode == .multi,

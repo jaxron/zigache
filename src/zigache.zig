@@ -15,7 +15,7 @@ pub const Pool = @import("structures/pool.zig").Pool;
 
 pub fn main() !void {}
 
-pub const ComptimeConfig = struct {
+pub const CacheTypeOptions = struct {
     /// Determines whether the Time-To-Live (TTL) functionality is enabled.
     ///
     /// When enabled, TTL is checked only when an item is accessed via the `get`
@@ -65,7 +65,7 @@ pub const ComptimeConfig = struct {
     max_load_percentage: u8 = 60,
 };
 
-pub const RuntimeConfig = struct {
+pub const CacheInitOptions = struct {
     // The maximum number of items the cache can hold before it starts evicting.
     cache_size: u32,
 
@@ -102,7 +102,7 @@ pub const RuntimeConfig = struct {
     ///
     /// Choose the policy that best fits your workload characteristics and
     /// performance requirements.
-    policy: PolicyConfig,
+    policy: PolicyOptions,
 
     pub const PolicyType = enum {
         FIFO,
@@ -112,7 +112,7 @@ pub const RuntimeConfig = struct {
         S3FIFO,
     };
 
-    pub const PolicyConfig = union(enum) {
+    pub const PolicyOptions = union(enum) {
         FIFO: struct {},
         LRU: struct {},
         TinyLFU: struct {
@@ -147,10 +147,10 @@ pub const RuntimeConfig = struct {
 
 /// Creates a sharded cache for key-value pairs.
 /// This function returns a cache type specialized for the given key and value types.
-pub fn Cache(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
+pub fn Cache(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOptions) type {
     return struct {
         /// A unified interface for different cache implementations.
-        pub const CacheImpl = union(RuntimeConfig.PolicyType) {
+        pub const CacheImpl = union(CacheInitOptions.PolicyType) {
             // NOTE: While it's better to implement interface-like behavior using
             // vtables (structs with function pointers), it can introduce complexity
             // or runtime overhead. I have chosen the union approach here as I do not
@@ -158,13 +158,13 @@ pub fn Cache(comptime K: type, comptime V: type, comptime comptime_opts: Comptim
             // the trade-offs for now. I may choose revisit this decision in the future
             // when accepted proposals like pinned structs are implemented in Zig.
 
-            FIFO: FIFO(K, V, comptime_opts),
-            LRU: LRU(K, V, comptime_opts),
-            TinyLFU: TinyLFU(K, V, comptime_opts),
-            SIEVE: SIEVE(K, V, comptime_opts),
-            S3FIFO: S3FIFO(K, V, comptime_opts),
+            FIFO: FIFO(K, V, cache_opts),
+            LRU: LRU(K, V, cache_opts),
+            TinyLFU: TinyLFU(K, V, cache_opts),
+            SIEVE: SIEVE(K, V, cache_opts),
+            S3FIFO: S3FIFO(K, V, cache_opts),
 
-            pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32, policy: RuntimeConfig.PolicyConfig) !CacheImpl {
+            pub fn init(allocator: std.mem.Allocator, total_size: u32, base_size: u32, policy: CacheInitOptions.PolicyOptions) !CacheImpl {
                 return switch (policy) {
                     .FIFO => .{ .FIFO = try .init(allocator, total_size, base_size, policy) },
                     .LRU => .{ .LRU = try .init(allocator, total_size, base_size, policy) },
@@ -224,7 +224,7 @@ pub fn Cache(comptime K: type, comptime V: type, comptime comptime_opts: Comptim
         const Self = @This();
 
         /// Initialize a new cache with the given configuration.
-        pub fn init(allocator: std.mem.Allocator, opts: RuntimeConfig) !Self {
+        pub fn init(allocator: std.mem.Allocator, opts: CacheInitOptions) !Self {
             const shard_count = try std.math.ceilPowerOfTwo(u16, opts.shard_count);
             const shard_cache_size = opts.cache_size / shard_count;
             // We allocate an extra node to handle the case where the pool is
@@ -288,7 +288,7 @@ pub fn Cache(comptime K: type, comptime V: type, comptime comptime_opts: Comptim
         /// for this entry returns a null result and is removed from the cache.
         /// Time is measured in milliseconds.
         pub fn putWithTTL(self: *Self, key: K, value: V, ttl: u64) !void {
-            comptime if (!comptime_opts.ttl_enabled) @compileError("TTL is not enabled for this cache configuration");
+            comptime if (!cache_opts.ttl_enabled) @compileError("TTL is not enabled for this cache configuration");
 
             const hash_code, const shard = self.getShard(key);
             try shard.put(key, value, ttl, hash_code);
@@ -326,14 +326,14 @@ pub fn hash(comptime K: type, key: K) u64 {
 
 const testing = std.testing;
 
-const TestConfig: RuntimeConfig = .{
+const TestOptions: CacheInitOptions = .{
     .cache_size = 100,
     .shard_count = 1,
     .policy = .FIFO,
 };
 
 test "Zigache - string keys" {
-    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -345,7 +345,7 @@ test "Zigache - string keys" {
 }
 
 test "Zigache - overwrite existing string key" {
-    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -355,7 +355,7 @@ test "Zigache - overwrite existing string key" {
 }
 
 test "Zigache - remove string key" {
-    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache([]const u8, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put("key1", "value1");
@@ -365,7 +365,7 @@ test "Zigache - remove string key" {
 }
 
 test "Zigache - integer keys" {
-    var cache: Cache(i32, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache(i32, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put(1, "one");
@@ -384,7 +384,7 @@ test "Zigache - integer keys" {
 test "Zigache - struct keys" {
     const Point = struct { x: i32, y: i32 };
 
-    var cache: Cache(Point, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache(Point, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put(.{ .x = 1, .y = 2 }, "point one-two");
@@ -401,7 +401,7 @@ test "Zigache - struct keys" {
 }
 
 test "Zigache - array keys" {
-    var cache: Cache([3]u8, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache([3]u8, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put([3]u8{ 1, 2, 3 }, "one-two-three");
@@ -422,7 +422,7 @@ test "Zigache - pointer keys" {
     var value2: i32 = 100;
     var value3: i32 = 200;
 
-    var cache: Cache(*i32, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache(*i32, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put(&value1, "pointer to 0");
@@ -445,7 +445,7 @@ test "Zigache - enum keys" {
         Blue,
     };
 
-    var cache: Cache(Color, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache(Color, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put(.Red, "crimson");
@@ -461,7 +461,7 @@ test "Zigache - enum keys" {
 }
 
 test "Zigache - optional keys" {
-    var cache: Cache(?i32, []const u8, .{}) = try .init(testing.allocator, TestConfig);
+    var cache: Cache(?i32, []const u8, .{}) = try .init(testing.allocator, TestOptions);
     defer cache.deinit();
 
     try cache.put(null, "no value");

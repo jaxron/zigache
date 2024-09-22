@@ -2,18 +2,18 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
-const ComptimeConfig = zigache.ComptimeConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
+const CacheTypeOptions = zigache.CacheTypeOptions;
 const Allocator = std.mem.Allocator;
 
 /// LRU is a cache eviction policy based on usage recency. It keeps track of
 /// what items are used and when. When the cache is full, the item that hasn't
 /// been used for the longest time is evicted. This policy is based on the idea
 /// that items that have been used recently are likely to be used again soon.
-pub fn LRU(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
-    const thread_safety = comptime_opts.thread_safety;
-    const ttl_enabled = comptime_opts.ttl_enabled;
-    const max_load_percentage = comptime_opts.max_load_percentage;
+pub fn LRU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOptions) type {
+    const thread_safety = cache_opts.thread_safety;
+    const ttl_enabled = cache_opts.ttl_enabled;
+    const max_load_percentage = cache_opts.max_load_percentage;
     return struct {
         const Map = zigache.Map(K, V, void, ttl_enabled, max_load_percentage);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);
@@ -25,7 +25,7 @@ pub fn LRU(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeC
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyConfig) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyOptions) !Self {
             return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 

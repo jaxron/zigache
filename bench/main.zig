@@ -6,7 +6,7 @@ const utils = @import("utils.zig");
 const Benchmark = @import("benchmark.zig").Benchmark;
 const Zipfian = @import("Zipfian.zig");
 const Allocator = std.mem.Allocator;
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
 const BenchmarkResult = utils.BenchmarkResult;
 const ReplayBenchmarkResult = utils.ReplayBenchmarkResult;
 
@@ -163,7 +163,7 @@ pub fn generateCacheSizes() []u32 {
 }
 
 fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []utils.Sample) ![]BenchmarkResult {
-    const policies = std.meta.fields(PolicyConfig);
+    const policies = std.meta.fields(PolicyOptions);
     const num_policies = if (config.policy) |_| 1 else policies.len;
 
     var results = try allocator.alloc(BenchmarkResult, num_policies);
@@ -172,7 +172,7 @@ fn runBenchmark(comptime config: utils.Config, allocator: Allocator, keys: []uti
     try printBenchmarkHeader(config, keys.len);
     inline for (0..num_policies) |i| {
         const policy_name = if (config.policy) |p| p else policies[i].name;
-        const policy_config = @unionInit(PolicyConfig, policy_name, .{});
+        const policy_config = @unionInit(PolicyOptions, policy_name, .{});
         results[i] = try Benchmark(config, policy_config).bench(allocator, keys);
     }
 

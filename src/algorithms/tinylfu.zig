@@ -2,8 +2,8 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
-const ComptimeConfig = zigache.ComptimeConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
+const CacheTypeOptions = zigache.CacheTypeOptions;
 const CountMinSketch = zigache.CountMinSketch;
 const Allocator = std.mem.Allocator;
 
@@ -14,10 +14,10 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://arxiv.org/pdf/1512.00727
-pub fn TinyLFU(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
-    const thread_safety = comptime_opts.thread_safety;
-    const ttl_enabled = comptime_opts.ttl_enabled;
-    const max_load_percentage = comptime_opts.max_load_percentage;
+pub fn TinyLFU(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOptions) type {
+    const thread_safety = cache_opts.thread_safety;
+    const ttl_enabled = cache_opts.ttl_enabled;
+    const max_load_percentage = cache_opts.max_load_percentage;
     return struct {
         const CacheRegion = enum { Window, Probationary, Protected };
 
@@ -48,7 +48,7 @@ pub fn TinyLFU(comptime K: type, comptime V: type, comptime comptime_opts: Compt
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, opts: PolicyConfig) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, opts: PolicyOptions) !Self {
             const window_size = @max(1, cache_size * opts.TinyLFU.window_size_percent / 100); // 1% window cache
             const main_size = @max(2, cache_size - window_size);
             const protected_size = @max(1, main_size * 8 / 10); // 80% of main cache

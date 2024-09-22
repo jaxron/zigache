@@ -2,17 +2,17 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
-const ComptimeConfig = zigache.ComptimeConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
+const CacheTypeOptions = zigache.CacheTypeOptions;
 const Allocator = std.mem.Allocator;
 
 /// FIFO is a simple cache eviction policy. In this approach, new items are added
 /// to the back of the queue. When the cache becomes full, the oldest item,
 /// which is at the front of the queue, is evicted to make room for the new item.
-pub fn FIFO(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
-    const thread_safety = comptime_opts.thread_safety;
-    const ttl_enabled = comptime_opts.ttl_enabled;
-    const max_load_percentage = comptime_opts.max_load_percentage;
+pub fn FIFO(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOptions) type {
+    const thread_safety = cache_opts.thread_safety;
+    const ttl_enabled = cache_opts.ttl_enabled;
+    const max_load_percentage = cache_opts.max_load_percentage;
     return struct {
         const Map = zigache.Map(K, V, void, ttl_enabled, max_load_percentage);
         const DoublyLinkedList = zigache.DoublyLinkedList(K, V, void, ttl_enabled);
@@ -24,7 +24,7 @@ pub fn FIFO(comptime K: type, comptime V: type, comptime comptime_opts: Comptime
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyConfig) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyOptions) !Self {
             return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 

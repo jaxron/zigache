@@ -2,8 +2,8 @@ const std = @import("std");
 const zigache = @import("../zigache.zig");
 const assert = std.debug.assert;
 
-const PolicyConfig = zigache.RuntimeConfig.PolicyConfig;
-const ComptimeConfig = zigache.ComptimeConfig;
+const PolicyOptions = zigache.CacheInitOptions.PolicyOptions;
+const CacheTypeOptions = zigache.CacheTypeOptions;
 const Allocator = std.mem.Allocator;
 
 /// SIEVE is an simple caching policy designed to balance between recency and
@@ -13,10 +13,10 @@ const Allocator = std.mem.Allocator;
 ///
 /// More information can be found here:
 /// https://cachemon.github.io/SIEVE-website/
-pub fn SIEVE(comptime K: type, comptime V: type, comptime comptime_opts: ComptimeConfig) type {
-    const thread_safety = comptime_opts.thread_safety;
-    const ttl_enabled = comptime_opts.ttl_enabled;
-    const max_load_percentage = comptime_opts.max_load_percentage;
+pub fn SIEVE(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeOptions) type {
+    const thread_safety = cache_opts.thread_safety;
+    const ttl_enabled = cache_opts.ttl_enabled;
+    const max_load_percentage = cache_opts.max_load_percentage;
     return struct {
         const Data = struct {
             visited: bool,
@@ -34,7 +34,7 @@ pub fn SIEVE(comptime K: type, comptime V: type, comptime comptime_opts: Comptim
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyConfig) !Self {
+        pub fn init(allocator: std.mem.Allocator, cache_size: u32, pool_size: u32, _: PolicyOptions) !Self {
             return .{ .map = try .init(allocator, cache_size, pool_size) };
         }
 
