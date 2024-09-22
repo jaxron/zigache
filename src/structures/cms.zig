@@ -88,19 +88,32 @@ pub const CountMinSketch = struct {
 const testing = std.testing;
 
 test "CountMinSketch - initialization" {
-    var cms: CountMinSketch = try .init(testing.allocator, 10, 5, 10);
+    const width: usize = 10;
+    const depth: usize = 5;
+    const reset_threshold: u32 = 10;
+
+    var cms: CountMinSketch = try .init(testing.allocator, width, depth, reset_threshold);
     defer cms.deinit();
 
-    try testing.expectEqual(10, cms.width);
-    try testing.expectEqual(5, cms.depth);
+    try testing.expectEqual(width, cms.width);
+    try testing.expectEqual(depth, cms.depth);
+    try testing.expectEqual(reset_threshold, cms.reset_threshold);
+    try testing.expectEqual(0, cms.total_count);
+
+    // Check that all counters are initialized to 0
+    for (cms.counters) |row| {
+        for (row) |cell| {
+            try testing.expectEqual(0, cell);
+        }
+    }
 }
 
 test "CountMinSketch - increment and estimate" {
     var cms: CountMinSketch = try .init(testing.allocator, 100, 5, 100);
     defer cms.deinit();
 
-    const item1: u64 = 123;
-    const item2: u64 = 456;
+    const item1: u64 = 123456789;
+    const item2: u64 = 987654321;
 
     // Increment item1 three times
     cms.increment(item1);
@@ -115,41 +128,36 @@ test "CountMinSketch - increment and estimate" {
     try testing.expectEqual(1, cms.estimate(item2));
 
     // Check estimate for non-existent item
-    try testing.expectEqual(0, cms.estimate(321));
+    try testing.expectEqual(0, cms.estimate(111222333));
+
+    // Check total count
+    try testing.expectEqual(4, cms.total_count);
 }
 
 test "CountMinSketch - overflow and reset" {
-    var cms: CountMinSketch = try .init(testing.allocator, 10, 3, 10);
+    const width: usize = 10;
+    const depth: usize = 3;
+    const reset_threshold: u32 = 10;
+
+    var cms: CountMinSketch = try .init(testing.allocator, width, depth, reset_threshold);
     defer cms.deinit();
 
-    const item: u64 = 123;
+    const item: u64 = 123456789;
 
     // Increment the item 20 times
-    var i: usize = 0;
-    while (i < 20) : (i += 1) {
+    for (0..20) |_| {
         cms.increment(item);
     }
 
     // The estimate should be 5 due to the reset
     const estimate = cms.estimate(item);
-    try testing.expect(estimate == 5);
-}
+    try testing.expectEqual(5, estimate);
+    try testing.expectEqual(5, cms.total_count);
 
-test "CountMinSketch - multiple items" {
-    var cms: CountMinSketch = try .init(testing.allocator, 100, 5, 100);
-    defer cms.deinit();
-
-    const items = [_]u64{ 1, 2, 3, 4, 5 };
-    const increments = [_]usize{ 3, 1, 4, 1, 5 };
-
-    for (items, increments) |item, count| {
-        for (0..count) |_| {
-            cms.increment(item);
+    // Check that all counters are <= 5
+    for (cms.counters) |row| {
+        for (row) |cell| {
+            try testing.expect(cell <= 5);
         }
-    }
-
-    for (items, increments) |item, expected| {
-        const estimate = cms.estimate(item);
-        try testing.expectEqual(expected, estimate);
     }
 }

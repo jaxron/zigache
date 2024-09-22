@@ -218,54 +218,50 @@ test "Map - init and deinit" {
 
     try testing.expectEqual(0, map.count());
     try testing.expectEqual(100, map.capacity);
+    try testing.expectEqual(0, map.tombstones);
 }
 
 test "Map - put and get" {
-    var map: TestMap = try .init(testing.allocator, 1, 1);
+    var map: TestMap = try .init(testing.allocator, 10, 10);
     defer map.deinit();
 
-    const key = "key1";
-    const hash_code = hash([]const u8, key);
+    const key1 = "key1";
+    const key2 = "key2";
+    const hash_code1 = hash([]const u8, key1);
+    const hash_code2 = hash([]const u8, key2);
 
-    // Insert a new entry
+    // Insert new entries
     {
-        const gop = try map.getOrPut(key, hash_code);
-        const node = gop.node;
+        const gop1 = try map.getOrPut(key1, hash_code1);
+        try testing.expect(!gop1.found_existing);
+        gop1.node.key = key1;
+        gop1.node.value = 1;
 
-        try testing.expect(!gop.found_existing);
-        node.key = key;
-        node.value = 1;
+        const gop2 = try map.getOrPut(key2, hash_code2);
+        try testing.expect(!gop2.found_existing);
+        gop2.node.key = key2;
+        gop2.node.value = 2;
     }
 
-    // Retrieve the entry
+    // Retrieve the entries
     {
-        const node = map.get(key, hash_code);
-        try testing.expect(node != null);
-        try testing.expectEqualStrings(key, node.?.key);
-        try testing.expectEqual(1, node.?.value);
+        const node1 = map.get(key1, hash_code1);
+        try testing.expect(node1 != null);
+        try testing.expectEqualStrings(key1, node1.?.key);
+        try testing.expectEqual(1, node1.?.value);
+
+        const node2 = map.get(key2, hash_code2);
+        try testing.expect(node2 != null);
+        try testing.expectEqualStrings(key2, node2.?.key);
+        try testing.expectEqual(2, node2.?.value);
     }
+
+    // Check count
+    try testing.expectEqual(2, map.count());
 }
 
 test "Map - remove" {
-    var map: TestMap = try .init(testing.allocator, 1, 1);
-    defer map.deinit();
-
-    const key = "key1";
-    const hash_code = hash([]const u8, key);
-
-    _ = try map.getOrPut(key, hash_code);
-
-    const node = map.remove(key, hash_code);
-    try testing.expect(node != null);
-    try testing.expect(map.get(key, hash_code) == null);
-    map.pool.release(node.?);
-
-    // Ensure that a second remove is idempotent
-    try testing.expect(map.remove(key, hash_code) == null);
-}
-
-test "Map - contains" {
-    var map: TestMap = try .init(testing.allocator, 2, 2);
+    var map: TestMap = try .init(testing.allocator, 10, 10);
     defer map.deinit();
 
     const key1 = "key1";
@@ -276,39 +272,112 @@ test "Map - contains" {
     _ = try map.getOrPut(key1, hash_code1);
     _ = try map.getOrPut(key2, hash_code2);
 
+    try testing.expectEqual(2, map.count());
+    try testing.expectEqual(0, map.tombstones);
+
+    const node1 = map.remove(key1, hash_code1);
+    try testing.expect(node1 != null);
+    try testing.expect(map.get(key1, hash_code1) == null);
+    try testing.expectEqual(1, map.count());
+    try testing.expectEqual(1, map.tombstones);
+    map.pool.release(node1.?);
+
+    // Ensure that a second remove is idempotent
+    try testing.expect(map.remove(key1, hash_code1) == null);
+    try testing.expectEqual(1, map.count());
+    try testing.expectEqual(0, map.tombstones);
+
+    // Remove the second key
+    const node2 = map.remove(key2, hash_code2);
+    try testing.expect(node2 != null);
+    try testing.expect(map.get(key2, hash_code2) == null);
+    try testing.expectEqual(0, map.count());
+    try testing.expectEqual(1, map.tombstones);
+    map.pool.release(node2.?);
+}
+
+test "Map - contains" {
+    var map: TestMap = try .init(testing.allocator, 10, 10);
+    defer map.deinit();
+
+    const key1 = "key1";
+    const key2 = "key2";
+    const key3 = "key3";
+    const hash_code1 = hash([]const u8, key1);
+    const hash_code2 = hash([]const u8, key2);
+    const hash_code3 = hash([]const u8, key3);
+
+    _ = try map.getOrPut(key1, hash_code1);
+    _ = try map.getOrPut(key2, hash_code2);
+
+    try testing.expect(map.contains(key1, hash_code1));
+    try testing.expect(map.contains(key2, hash_code2));
+    try testing.expect(!map.contains(key3, hash_code3));
+
     const node = map.remove(key2, hash_code2);
     try testing.expect(node != null);
     map.pool.release(node.?);
 
     try testing.expect(map.contains(key1, hash_code1));
     try testing.expect(!map.contains(key2, hash_code2));
+    try testing.expect(!map.contains(key3, hash_code3));
 }
 
 test "Map - checkTTL" {
-    var map: TestMap = try .init(testing.allocator, 1, 1);
+    var map: TestMap = try .init(testing.allocator, 10, 10);
     defer map.deinit();
 
-    const key = "key1";
-    const hash_code = hash([]const u8, key);
+    const key1 = "key1";
+    const key2 = "key2";
+    const hash_code1 = hash([]const u8, key1);
+    const hash_code2 = hash([]const u8, key2);
 
-    const gop = try map.getOrPut(key, hash_code);
-    const node = gop.node;
-    node.* = .{
-        .key = key,
-        .value = 1,
-        .next = null,
-        .prev = null,
-        .expiry = std.time.milliTimestamp() - 1000,
-        .data = {},
-    };
+    const now = std.time.milliTimestamp();
 
-    try testing.expect(map.checkTTL(node, hash_code));
-    try testing.expect(map.get(key, hash_code) == null);
-    map.pool.release(node);
+    // Add a node with expired TTL
+    {
+        const gop = try map.getOrPut(key1, hash_code1);
+        gop.node.* = .{
+            .key = key1,
+            .value = 1,
+            .next = null,
+            .prev = null,
+            .expiry = now - 1000, // Expired
+            .data = {},
+        };
+    }
+
+    // Add a node with future TTL
+    {
+        const gop = try map.getOrPut(key2, hash_code2);
+        gop.node.* = .{
+            .key = key2,
+            .value = 2,
+            .next = null,
+            .prev = null,
+            .expiry = now + 1000, // Not expired
+            .data = {},
+        };
+    }
+
+    try testing.expectEqual(2, map.count());
+
+    // Check expired node
+    const node1 = map.get(key1, hash_code1).?;
+    try testing.expect(map.checkTTL(node1, hash_code1));
+    try testing.expect(map.get(key1, hash_code1) == null);
+    try testing.expectEqual(1, map.count());
+    map.pool.release(node1);
+
+    // Check non-expired node
+    const node2 = map.get(key2, hash_code2).?;
+    try testing.expect(!map.checkTTL(node2, hash_code2));
+    try testing.expect(map.get(key2, hash_code2) != null);
+    try testing.expectEqual(1, map.count());
 }
 
 test "Map - update existing entry" {
-    var map: TestMap = try .init(testing.allocator, 1, 1);
+    var map: TestMap = try .init(testing.allocator, 10, 10);
     defer map.deinit();
 
     const key = "key1";
@@ -317,20 +386,20 @@ test "Map - update existing entry" {
     // First insertion
     {
         const gop = try map.getOrPut(key, hash_code);
-        const node = gop.node;
         try testing.expect(!gop.found_existing);
-        node.value = 1;
+        gop.node.key = key;
+        gop.node.value = 1;
     }
 
     // Update existing entry
     {
         const gop = try map.getOrPut(key, hash_code);
-        const node = gop.node;
         try testing.expect(gop.found_existing);
-        node.value = 10;
+        gop.node.value = 10;
     }
 
     const node = map.get(key, hash_code);
     try testing.expect(node != null);
     try testing.expectEqual(10, node.?.value);
+    try testing.expectEqual(1, map.count());
 }

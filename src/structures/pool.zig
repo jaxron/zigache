@@ -118,15 +118,23 @@ const testing = std.testing;
 const TestPool = zigache.Pool(u32, u32, void, false);
 
 test "Pool - init and deinit" {
-    var pool: TestPool = try .init(testing.allocator, 10);
+    const initial_size: u32 = 10;
+    var pool: TestPool = try .init(testing.allocator, initial_size);
     defer pool.deinit();
 
-    try testing.expectEqual(10, pool.available);
-    try testing.expectEqual(10, pool.nodes.len);
+    try testing.expectEqual(initial_size, pool.available);
+    try testing.expectEqual(initial_size, pool.nodes.len);
+
+    // Ensure all nodes are properly initialized
+    for (pool.nodes) |node| {
+        try testing.expect(node.prev == null);
+        try testing.expect(node.next == null);
+    }
 }
 
 test "Pool - acquire and release" {
-    var pool: TestPool = try .init(testing.allocator, 2);
+    const initial_size: u32 = 2;
+    var pool: TestPool = try .init(testing.allocator, initial_size);
     defer pool.deinit();
 
     // Acquire nodes until the pool is empty
@@ -136,17 +144,56 @@ test "Pool - acquire and release" {
     const node2 = try pool.acquire();
     try testing.expectEqual(0, pool.available);
 
-    // Acquire when pool is empty
+    // Acquire when pool is empty (should create a new node)
     const node3 = try pool.acquire();
     try testing.expectEqual(0, pool.available);
 
+    // Release nodes back to the pool
     pool.release(node1);
     try testing.expectEqual(1, pool.available);
 
     pool.release(node2);
     try testing.expectEqual(2, pool.available);
 
-    // Release when pool is full
+    // Release when pool is full (should destroy the node)
+    const initial_ptr = node3;
     pool.release(node3);
     try testing.expectEqual(2, pool.available);
+
+    // Verify that acquiring now returns a pooled node, not the destroyed one
+    const new_node = try pool.acquire();
+    try testing.expect(new_node != initial_ptr);
+    try testing.expectEqual(1, pool.available);
+    pool.release(new_node);
+}
+
+test "Pool - node reuse" {
+    const initial_size: u32 = 1;
+    var pool: TestPool = try .init(testing.allocator, initial_size);
+    defer pool.deinit();
+
+    const node1 = try pool.acquire();
+    try testing.expectEqual(0, pool.available);
+
+    pool.release(node1);
+    try testing.expectEqual(1, pool.available);
+
+    const node2 = try pool.acquire();
+    try testing.expectEqual(0, pool.available);
+
+    // Verify that the same node was reused
+    try testing.expectEqual(@intFromPtr(node1), @intFromPtr(node2));
+    pool.release(node2);
+}
+
+test "Pool - update node" {
+    var pool: TestPool = try .init(testing.allocator, 1);
+    defer pool.deinit();
+
+    const node = try pool.acquire();
+    node.update(0, 100, null, {});
+
+    try testing.expectEqual(0, node.key);
+    try testing.expectEqual(100, node.value);
+    pool.release(node);
 }

@@ -189,24 +189,38 @@ test "DoublyLinkedList - basic operations" {
     try testing.expectEqual(1, list.len);
     try testing.expectEqual(&node1, list.first);
     try testing.expectEqual(&node1, list.last);
+    try testing.expect(node1.prev == null);
+    try testing.expect(node1.next == null);
 
     // Test prepend
     list.prepend(&node2);
     try testing.expectEqual(2, list.len);
     try testing.expectEqual(&node2, list.first);
     try testing.expectEqual(&node1, list.last);
+    try testing.expect(node2.prev == null);
+    try testing.expectEqual(&node1, node2.next);
+    try testing.expectEqual(&node2, node1.prev);
+    try testing.expect(node1.next == null);
 
     // Test insertAfter
     list.insertAfter(&node2, &node3);
     try testing.expectEqual(3, list.len);
+    try testing.expectEqual(&node2, list.first);
+    try testing.expectEqual(&node1, list.last);
     try testing.expectEqual(&node3, node2.next);
+    try testing.expectEqual(&node2, node3.prev);
     try testing.expectEqual(&node1, node3.next);
+    try testing.expectEqual(&node3, node1.prev);
 
     // Test remove
     list.remove(&node3);
     try testing.expectEqual(2, list.len);
+    try testing.expectEqual(&node2, list.first);
+    try testing.expectEqual(&node1, list.last);
     try testing.expectEqual(&node1, node2.next);
     try testing.expectEqual(&node2, node1.prev);
+    try testing.expect(node3.prev == null);
+    try testing.expect(node3.next == null);
 
     // Test pop
     var popped = list.pop();
@@ -214,13 +228,15 @@ test "DoublyLinkedList - basic operations" {
     try testing.expectEqual(1, list.len);
     try testing.expectEqual(&node2, list.first);
     try testing.expectEqual(&node2, list.last);
+    try testing.expect(node2.prev == null);
+    try testing.expect(node2.next == null);
 
     // Test popFirst
     popped = list.popFirst();
     try testing.expectEqual(&node2, popped);
     try testing.expectEqual(0, list.len);
-    try testing.expectEqual(null, list.first);
-    try testing.expectEqual(null, list.last);
+    try testing.expect(list.first == null);
+    try testing.expect(list.last == null);
 }
 
 test "DoublyLinkedList - edge cases" {
@@ -229,20 +245,24 @@ test "DoublyLinkedList - edge cases" {
     var node2 = initTestNode(2);
 
     // Test empty list
-    try testing.expectEqual(null, list.pop());
-    try testing.expectEqual(null, list.popFirst());
+    try testing.expect(list.pop() == null);
+    try testing.expect(list.popFirst() == null);
 
     // Test single element
     list.append(&node1);
     try testing.expectEqual(1, list.len);
     try testing.expectEqual(&node1, list.first);
     try testing.expectEqual(&node1, list.last);
+    try testing.expect(node1.prev == null);
+    try testing.expect(node1.next == null);
 
     // Test removing single element
     list.remove(&node1);
     try testing.expectEqual(0, list.len);
-    try testing.expectEqual(null, list.first);
-    try testing.expectEqual(null, list.last);
+    try testing.expect(list.first == null);
+    try testing.expect(list.last == null);
+    try testing.expect(node1.prev == null);
+    try testing.expect(node1.next == null);
 
     // Test insertBefore on empty list
     list.prepend(&node1);
@@ -250,6 +270,10 @@ test "DoublyLinkedList - edge cases" {
     try testing.expectEqual(2, list.len);
     try testing.expectEqual(&node2, list.first);
     try testing.expectEqual(&node1, list.last);
+    try testing.expect(node2.prev == null);
+    try testing.expectEqual(&node1, node2.next);
+    try testing.expectEqual(&node2, node1.prev);
+    try testing.expect(node1.next == null);
 }
 
 test "DoublyLinkedList - moveToBack" {
@@ -263,21 +287,33 @@ test "DoublyLinkedList - moveToBack" {
     list.append(&node3);
 
     list.moveToBack(&node1);
+    try testing.expectEqual(3, list.len);
     try testing.expectEqual(&node2, list.first);
     try testing.expectEqual(&node1, list.last);
-    try testing.expectEqual(3, list.len);
+    try testing.expect(node2.prev == null);
+    try testing.expectEqual(&node3, node2.next);
+    try testing.expectEqual(&node2, node3.prev);
+    try testing.expectEqual(&node1, node3.next);
+    try testing.expectEqual(&node3, node1.prev);
+    try testing.expect(node1.next == null);
 }
 
 test "DoublyLinkedList - clear" {
     var list: TestList = .empty;
     var node1 = initTestNode(1);
     var node2 = initTestNode(2);
+    var node3 = initTestNode(3);
 
     list.append(&node1);
     list.append(&node2);
+    list.append(&node3);
 
+    try testing.expectEqual(3, list.len);
     list.clear();
     try testing.expectEqual(0, list.len);
-    try testing.expectEqual(null, list.first);
-    try testing.expectEqual(null, list.last);
+    try testing.expect(list.first == null);
+    try testing.expect(list.last == null);
+    try testing.expect(node1.prev == null and node1.next == null);
+    try testing.expect(node2.prev == null and node2.next == null);
+    try testing.expect(node3.prev == null and node3.next == null);
 }
