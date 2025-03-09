@@ -24,7 +24,7 @@
 ---
 
 > [!IMPORTANT]
-> Zigache is currently in **early development** and follows Zig's latest build in the master branch.
+> Zigache is **not in active development** but will be maintained. The library follows Zig version `0.14.0`.
 
 # 📚 Table of Contents
 
@@ -33,7 +33,6 @@
 - [👀 Examples](#-examples)
 - [⚙️ Configuration](#%EF%B8%8F-configuration)
 - [📊 Benchmarks](#-benchmarks)
-- [🗺️ Roadmap](#%EF%B8%8F-roadmap)
 - [📄 License](#-license)
 - [❓ FAQ](#-faq)
 
@@ -119,6 +118,8 @@ To use Zigache in your project, follow these steps:
     }
     ```
 
+<small>[🔝 Back to top](#-table-of-contents)</small>
+
 # 👀 Examples
 
 Explore the usage scenarios in our examples directory:
@@ -132,6 +133,8 @@ To run an example:
 zig build [example-id]
 zig build 01
 ```
+
+<small>[🔝 Back to top](#-table-of-contents)</small>
 
 # ⚙️ Configuration
 
@@ -151,6 +154,8 @@ var cache: Cache([]const u8, []const u8, .{
 ```
 
 > For more detailed information, refer to the [full documentation](https://jaxron.me/zigache/).
+
+<small>[🔝 Back to top](#-table-of-contents)</small>
 
 # 📊 Benchmarks
 
@@ -233,30 +238,13 @@ zig build bench -Doptimize=ReleaseFast -Dreplay=true -Dshards=1 -Dthreads=1 -Dau
 
 </details>
 
-# 🗺️ Roadmap
-
-Zigache is in its early stages. Our main priority is on implementing features, with performance improvements as a secondary priority. Here are some things we have planned for the future:
-
-- [ ] 🧪 Improved benchmarking suite
-- [ ] ⚙️ Runtime-configurable API
-- [ ] 📦 Batch operations support
-- [ ] 📊 Metrics and monitoring
-- [X] 🔄 Configuration to adjust eviction policies
-- [ ] 🔓 Lock-free data structures
-- [ ] 📚 More extensive examples
-- [ ] ⚡️ Async (non-blocking) I/O operations
-
-> 💡 **We value your input!** Have suggestions for our roadmap? Feel free to open an issue or start a discussion.
-
-# 📄 License
-
-This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md) file for details.
+<small>[🔝 Back to top](#-table-of-contents)</small>
 
 # ❓ FAQ
 
 <details>
   <summary><b>Is Zigache production-ready?</b></summary>
-  <p>Zigache is currently in early development. Although it has been tested and benchmarked, it may not yet be suitable for all production environments. If you decide to use it in a production setting, please report any problems you encounter.</p>
+  <p>Yes, Zigache is production-ready. It has been thoroughly tested and benchmarked for performance and stability. If you encounter any problems while using it in production, please report them so they can be addressed.</p>
 </details>
 
 <details>
@@ -286,3 +274,9 @@ This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md)
   <summary><b>How can I contribute to Zigache?</b></summary>
   <p>We welcome contributions! Please follow the <a href="https://ziglang.org/documentation/master/#Style-Guide">Zig Style Guide</a> and ensure that your changes include appropriate tests.</p>
 </details>
+
+<small>[🔝 Back to top](#-table-of-contents)</small>
+
+# 📄 License
+
+This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md) file for details.

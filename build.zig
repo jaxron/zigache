@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 comptime {
-    const min_zig = std.SemanticVersion.parse("0.13.0-dev.351+64ef45eb0") catch unreachable;
+    const min_zig = std.SemanticVersion.parse("0.14.0") catch unreachable;
     if (builtin.zig_version.order(min_zig) == .lt) {
         const error_message =
             \\Oops! It looks like your version of Zig is unsupported.
@@ -102,7 +102,7 @@ pub fn build(b: *std.Build) void {
     // Tests
     const lib_test = b.addTest(.{
         .root_source_file = b.path("src/zigache.zig"),
-        .test_runner = b.path("test_runner.zig"),
+        .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
         .optimize = optimize,
         .target = target,
     });
@@ -110,7 +110,7 @@ pub fn build(b: *std.Build) void {
 
     const bench_test = b.addTest(.{
         .root_source_file = b.path("bench/main.zig"),
-        .test_runner = b.path("test_runner.zig"),
+        .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
         .optimize = optimize,
         .target = target,
     });

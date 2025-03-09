@@ -1,6 +1,7 @@
 .{
-    .name = "zigache",
+    .name = .zigache,
     .version = "0.1.0",
+    .fingerprint = 0x886a34b316f2f872,
     .paths = .{
         "src",
         "build.zig",

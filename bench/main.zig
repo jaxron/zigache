@@ -124,7 +124,7 @@ pub fn runDefault(allocator: Allocator, keys: []utils.Sample) !void {
         };
     }
 
-    const execution_mode = comptime if (getExecutionMode()) "multi" else "single";
+    const execution_mode = comptime if (getExecutionMode() == .multi) "multi" else "single";
     try utils.generateCSVs(execution_mode, &results);
 
     // Clear the line and create some space

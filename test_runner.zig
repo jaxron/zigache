@@ -276,12 +276,14 @@ const Env = struct {
     }
 };
 
-pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    if (current_test) |ct| {
-        std.debug.print("\x1b[31m{s}\npanic running \"{s}\"\n{s}\x1b[0m\n", .{ BORDER, ct, BORDER });
+pub const panic = std.debug.FullPanic(struct {
+    pub fn panicFn(msg: []const u8, first_trace_addr: ?usize) noreturn {
+        if (current_test) |ct| {
+            std.debug.print("\x1b[31m{s}\npanic running \"{s}\"\n{s}\x1b[0m\n", .{ BORDER, ct, BORDER });
+        }
+        std.debug.defaultPanic(msg, first_trace_addr);
     }
-    std.builtin.default_panic(msg, error_return_trace, ret_addr);
-}
+}.panicFn);
 
 fn isUnnamed(t: std.builtin.TestFn) bool {
     const marker = ".test_";
