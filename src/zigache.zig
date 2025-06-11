@@ -316,6 +316,9 @@ pub fn Cache(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeO
 
 /// Compute a hash for the given key.
 pub fn hash(comptime K: type, key: K) u64 {
+    if (@typeInfo(K) == .int) {
+        return std.hash.int(key);
+    }
     if (K == []const u8) {
         return Wyhash.hash(0, key);
     }
