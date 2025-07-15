@@ -316,7 +316,8 @@ pub fn Cache(comptime K: type, comptime V: type, comptime cache_opts: CacheTypeO
 
 /// Compute a hash for the given key.
 pub fn hash(comptime K: type, key: K) u64 {
-    if (@typeInfo(K) == .int) {
+    const type_info = @typeInfo(K);
+    if (type_info == .int and type_info.int.signedness == .unsigned) {
         return std.hash.int(key);
     }
     if (K == []const u8) {
